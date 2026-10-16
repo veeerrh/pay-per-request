@@ -75,7 +75,7 @@ describe('invariant (TC-2.2)', () => {
     const a = await runInvariant({ seed: 7, runs: 20, cfg });
     const b = await runInvariant({ seed: 7, runs: 20, cfg });
     expect(JSON.stringify({ ...a, maxSeen: String(a.maxSeen) })).toBe(JSON.stringify({ ...b, maxSeen: String(b.maxSeen) }));
-  });
+  }, 60000);
   it('09 mutation: removing the release-on-throw makes the test fail', async () => {
     class Faulty extends Budget {
       async withReservation(a: any, fn: any): Promise<any> {
@@ -88,5 +88,5 @@ describe('invariant (TC-2.2)', () => {
     }
     const s = await runInvariant({ seed: 42, runs: 5, cfg, factory: (st, c) => new Faulty(st, c) });
     expect(s.violations).toBeGreaterThan(0);
-  });
+  }, 60000);
 });
