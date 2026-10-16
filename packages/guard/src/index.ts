@@ -26,3 +26,6 @@ export * from './chain';
 export * from './recover';
 export * from './seller/claims';
 export * from './reconcile';
+export * from './reputation';
+export * from './selector';
+export * from './step';
