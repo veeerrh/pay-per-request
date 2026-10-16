@@ -25,7 +25,7 @@ export interface ReconcileResult {
  * Compares paid ledger rows with USDC transfers OUT of the buyer wallet since the session started (M-34, T-02).
  * Wallet balance is only a cross-check because faucet top-ups change it (M-68).
  */
-export async function reconcile(d: { store: Store; chain: ReconcileChain; buyerAddress: string; fromBlock: bigint; sessionId?: string }): Promise<ReconcileResult> {
+export async function reconcileOnce(d: { store: Store; chain: ReconcileChain; buyerAddress: string; fromBlock: bigint; sessionId?: string }): Promise<ReconcileResult> {
   const entries = d.store.listEntries(d.sessionId);
   const moved = entries.filter((e) => e.status === 'paid' || e.status === 'rejected');
   const pending = entries.filter((e) => e.status === 'pending');
@@ -70,4 +70,17 @@ export async function reconcile(d: { store: Store; chain: ReconcileChain; buyerA
   try { wallet = { balance: await d.chain.balanceOf(d.buyerAddress), note: 'cross-check only; faucet top-ups change the balance' }; } catch { /* optional */ }
   const ok = differences.length === 0 && !receiptError;
   return { ok, status: ok ? 'matched' : receiptError && differences.length === 0 ? 'unverified' : 'differences', ledgerTotal, chainTotal, rows, differences, wallet, error: receiptError };
+}
+
+/**
+ * Like reconcileOnce, but a paid row whose transfer is not visible yet is re-checked a few times, because the public RPC
+ * can lag a few seconds behind a fresh confirmation. A persistent difference is still reported as a difference.
+ */
+export async function reconcile(d: { store: Store; chain: ReconcileChain; buyerAddress: string; fromBlock: bigint; sessionId?: string; retry?: { times: number; delayMs: number } }): Promise<ReconcileResult> {
+  let r = await reconcileOnce(d);
+  for (let i = 0; i < (d.retry?.times ?? 0) && r.differences.some((x) => x.status === 'ledger_only' && x.txHash); i++) {
+    await new Promise((res) => setTimeout(res, d.retry!.delayMs));
+    r = await reconcileOnce(d);
+  }
+  return r;
 }

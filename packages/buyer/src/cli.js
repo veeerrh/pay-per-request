@@ -55,7 +55,7 @@ const flag = (n) => process.argv.includes(`--${n}`);
   const sess = store.db.prepare('SELECT start_block FROM sessions WHERE id=?').get(store.sessionId);
   if (sess && sess.start_block != null) {
     await new Promise((r) => setTimeout(r, 4000));
-    const rec = await g.reconcile({ store, chain, buyerAddress: signer.address, fromBlock: BigInt(sess.start_block) });
+    const rec = await g.reconcile({ store, chain, buyerAddress: signer.address, fromBlock: BigInt(sess.start_block), retry: { times: 4, delayMs: 3000 } });
     console.log(`reconciliation: ${rec.status.toUpperCase()} (ledger ${rec.ledgerTotal}, chain ${rec.chainTotal})`);
     rec.differences.forEach((d) => console.log('  difference:', d.status, d.txHash || '-', String(d.ledgerAmount), String(d.chainAmount)));
   } else console.log('reconciliation skipped: this session has no start block (use --new-session)');

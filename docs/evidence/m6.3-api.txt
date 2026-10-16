@@ -1,0 +1,6 @@
+Milestone 6.3: Beacon HTTP API on :4100 driven live (real facilitator, registry on :4000 seeded with the 7 listings).
+POST /api/tasks (task 1, 50000 units) -> SSE stream: stages plan, discover, pay, execute, validate, combine, then done: completed, spent 39000, paidCalls 7.
+In that run the buyer had already learned from the session ledger: it went straight to Atlas, Tremor x3, Hollow (junk, 8000) and Brief x2; refused/failed fixtures were not contacted again.
+POST /api/reconcile -> status matched, ledger 48000, chain 48000 (session total).
+GET /api/ledger/verify -> ok true, 60 rows.
+Registry probe flagged Overquote and Redirect (listed but marked flagged), others active.

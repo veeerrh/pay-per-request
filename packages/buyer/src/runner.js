@@ -68,7 +68,7 @@ async function runTask(ctx, req, emit = () => {}) {
     const result = await g.pay(deps, {
       requestId, taskId, seller: { id: c.id, name: c.name, category: c.category },
       listing: { price: c.price, payTo: c.payTo, network: g.NETWORK, asset: g.USDC_ADDRESS }, listingHash: c.listingHash,
-      url: r.url, method: r.method, body: r.body, validate: r.validate,
+      url: r.url, method: r.method, body: r.body, validate: r.validate, meta: { why: c.why, source: 'task' },
     });
     const entry = store.listEntries().find((e) => e.id === requestId);
     if (entry) emit({ type: 'ledger', entry: { ...entry, buyer: 'Scout', seller: c.name, why: c.why, source: 'task' } });
@@ -163,4 +163,70 @@ async function runTask(ctx, req, emit = () => {}) {
   return { status, notice, result, totals, attempts, entries, params };
 }
 
-module.exports = { runTask };
+/**
+ * Direct-URL mode (M-65, S-89, T-08b): buy one URL once, with an operator-supplied expected price.
+ * Every guard check still runs. If no expected payTo is given, the payee cannot be compared with a listing,
+ * so the row is marked payToUnverified (decision D-32).
+ * req: { taskId, budget: bigint, directUrl: { url, expectedPrice: bigint, category, expectedPayTo? } }
+ */
+async function runDirect(ctx, req, emit = () => {}) {
+  const { store, budget, signer, cfg, chain } = ctx;
+  const act = (kind, text) => emit({ type: 'activity', kind, text, at: new Date().toISOString() });
+  const blocked = (notice) => { emit({ type: 'blocked', notice, at: new Date().toISOString() }); act('blocked', notice); return { status: 'blocked', notice }; };
+  const d = req.directUrl;
+  emit({ type: 'stage', stage: 'plan' });
+  act('start', `Direct purchase started with a ${fmt(req.budget)} USDC hard cap.`);
+  try { await g.assertPublicEndpoint(d.url, { allowPrivate: !!ctx.allowPrivate }); } catch (e) { return blocked(`That URL is not allowed: ${e.message}.`); }
+  if (d.expectedPrice > req.budget) return blocked(`Expected price ${fmt(d.expectedPrice)} USDC is above the budget ${fmt(req.budget)} USDC. Nothing was bought.`);
+  let balance;
+  try { balance = await chain.balanceOf(signer.address); } catch (e) { return blocked(`Cannot read the wallet balance (${e.message}).`); }
+  const startV = g.taskStartVerdict(balance, d.expectedPrice, cfg);
+  if (startV) return blocked(startV.reason);
+
+  let payTo = d.expectedPayTo;
+  const unverified = !payTo;
+  emit({ type: 'stage', stage: 'discover' });
+  if (!payTo) {
+    act('info', 'No expected payTo supplied: reading it from the seller 402. Price, token, network and scheme are still checked.');
+    try {
+      const res = await g.limitedFetch(fetch, d.url, {}, { timeoutMs: cfg.requestTimeoutMs, maxBytes: cfg.maxBodyBytes });
+      const h = res.headers.get('payment-required');
+      if (res.status !== 402 || !h) return blocked(`The URL answered ${res.status} instead of 402 Payment Required. Nothing was signed.`);
+      payTo = g.decodePaymentRequired(h).accepts[0].payTo;
+    } catch (e) { return blocked(`Could not read a valid 402 from that URL: ${e.message}. Nothing was signed.`); }
+  }
+  budget.openTask(req.taskId, req.budget);
+  const requestId = `${req.taskId}-1`;
+  emit({ type: 'stage', stage: 'pay' });
+  act('select', `Direct URL selected: ${new URL(d.url).host}.`);
+  const result = await g.pay({ store, budget, signer, cfg, chain, log: ctx.log }, {
+    requestId, taskId: req.taskId, seller: { id: 'direct', name: new URL(d.url).host, category: d.category },
+    listing: { price: d.expectedPrice, payTo, network: g.NETWORK, asset: g.USDC_ADDRESS }, listingHash: `direct-${new URL(d.url).host}`, url: d.url,
+    meta: { why: 'Direct-URL mode: price supplied by the operator', source: 'direct', payToUnverified: unverified },
+  });
+  const entry = store.listEntries().find((e) => e.id === requestId);
+  if (entry) emit({ type: 'ledger', entry: { ...entry, buyer: 'Scout', source: 'direct' } });
+  if (result.status === 'refused') act('refused', `Refused: ${result.reason}`);
+  else if (result.status === 'failed') act('failed', `Failed, not charged: ${result.reason}`);
+  else if (result.status === 'pending') act('info', `Pending: ${result.reason}`);
+  else act(result.status === 'paid' ? 'validated' : 'rejected', result.status === 'paid' ? 'Paid and received a response.' : `Paid, output rejected: ${result.reason}`);
+  const t = budget.totals(req.taskId);
+  emit({ type: 'metrics', budget: String(t.budget), reserved: String(t.reserved), spent: String(t.spent), remaining: String(t.remaining), paidCalls: result.paid > 0n ? 1 : 0, services: result.status === 'paid' ? ['direct'] : [] });
+  for (const s of ['execute', 'validate', 'combine']) emit({ type: 'stage', stage: s });
+  const ok = result.status === 'paid';
+  const out = {
+    complete: ok, assessment: { level: ok ? 'low' : 'incomplete', title: ok ? 'Direct purchase completed' : 'Direct purchase was not completed', summary: ok ? 'The seller answered and the payment passed every guard check.' : result.reason },
+    evidence: ok ? [`Response: ${JSON.stringify(result.output).slice(0, 300)}`] : [], sources: [new URL(d.url).host],
+    uncertainty: unverified ? 'The payee address was not supplied, so it could not be compared with a listing. Price, token, network and scheme were still checked.' : 'Content is whatever the seller returned and was only checked for valid JSON.',
+    contributors: ok ? [{ id: 'direct', name: new URL(d.url).host, category: d.category }] : [],
+    breakdown: [{ callNo: entry?.callNo ?? 1, sellerId: 'direct', seller: new URL(d.url).host, category: d.category, why: 'Direct-URL mode', listed: String(d.expectedPrice), paid: String(result.paid), outcome: result.status, ruleId: result.ruleId, reason: result.reason }],
+    rawOutputs: [],
+  };
+  const status = ok ? 'completed' : 'stopped';
+  if (ok) emit({ type: 'output', call: entry?.callNo ?? 1, agent: 'direct', status: 'accepted', output: result.output });
+  emit({ type: 'done', status, notice: ok ? '' : result.reason, result: out, at: new Date().toISOString() });
+  act(ok ? 'completed' : 'stopped', ok ? `Done. Spent ${fmt(t.spent)} of ${fmt(t.budget)} USDC.` : result.reason);
+  return { status, notice: ok ? '' : result.reason, result: out, totals: t };
+}
+
+module.exports = { runTask, runDirect };
