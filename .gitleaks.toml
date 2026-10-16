@@ -1,0 +1,8 @@
+title = "di06"
+[extend]
+useDefault = true
+[[rules]]
+id = "di06-evm-private-key"
+description = "EVM private key assigned to a key-like name"
+regex = '''(?i)(private[_-]?key|_pk|secret)\s*[=:]\s*['"]?0x[a-f0-9]{64}'''
+tags = ["key"]

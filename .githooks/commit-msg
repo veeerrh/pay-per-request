@@ -1,0 +1,4 @@
+#!/bin/sh
+if grep -qiE '^co-authored-by:' "$1"; then
+  echo "Blocked: remove the Co-authored-by trailer."; exit 1
+fi

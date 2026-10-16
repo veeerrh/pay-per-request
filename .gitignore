@@ -1,3 +1,11 @@
 node_modules/
 .env
 *.log
+.env.*
+!.env.example
+data/
+logs/
+*.db
+packages/*/dist/
+.claude/
+evidence/private/
