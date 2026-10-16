@@ -143,6 +143,8 @@ export class Store {
       if (e.eventType === 'confirmed') { cur.txConfirmed = true; Object.assign(cur, e.payload); continue; }
       Object.assign(cur, e.payload);
       if (e.eventType === 'final') cur.ruleSetHash = e.ruleSetHash;
+      cur.hash = e.hash; // the row's latest event hash and its link, for the decision log (A-01, A-21)
+      cur.prevHash = e.prevHash;
     }
     return [...byReq.values()];
   }

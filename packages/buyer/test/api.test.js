@@ -62,7 +62,7 @@ describe('Beacon API (TC-6.3)', () => {
     expect(done.spent).toBe('39000');
     const events = await sse(base, taskId);
     expect(events.filter((e) => e.type === 'stage').map((e) => e.stage)).toEqual(['plan', 'discover', 'pay', 'execute', 'validate', 'combine']);
-    expect(events.at(-1).type).toBe('activity'); // final activity follows done
+    expect(events.at(-1).type).toBe('done'); // done is the last event: the stream ends there
     expect(events.some((e) => e.type === 'done')).toBe(true);
     const ledger = await (await fetch(`${base}/api/ledger`)).json();
     expect(events.filter((e) => e.type === 'ledger')).toHaveLength(ledger.length);

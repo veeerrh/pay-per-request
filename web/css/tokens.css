@@ -1,0 +1,31 @@
+/* Design tokens. Calm dark navy, one violet accent. Green = paid/ok, amber = pending/attention, red = refused/error. */
+:root {
+  --bg: #0b1020;
+  --surface: #121a2e;
+  --surface-2: #18223b;
+  --surface-3: #1f2b49;
+  --border: #26324f;
+  --border-strong: #34426a;
+  --text: #eef0f7;
+  --muted: #a5afc8;
+  --faint: #8590ad;
+
+  --accent: #6a5af9;
+  --accent-hover: #7a6cfb;
+  --accent-text: #b4abff;
+  --accent-soft: rgba(106, 90, 249, 0.16);
+
+  --green: #4ade80;
+  --green-soft: rgba(74, 222, 128, 0.14);
+  --amber: #fbbf24;
+  --amber-soft: rgba(251, 191, 36, 0.14);
+  --red: #f87171;
+  --red-soft: rgba(248, 113, 113, 0.14);
+
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 24px rgba(0, 0, 0, 0.18);
+  --sidebar-w: 268px;
+  --font: Inter, "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+}

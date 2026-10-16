@@ -158,8 +158,8 @@ async function runTask(ctx, req, emit = () => {}) {
   const totals = budget.totals(taskId);
   metrics();
   const status = complete ? 'completed' : 'stopped';
-  emit({ type: 'done', status, notice, result, at: new Date().toISOString() });
   act(complete ? 'completed' : 'stopped', complete ? `Task completed. Spent ${fmt(totals.spent)} of ${fmt(totals.budget)} USDC.` : notice);
+  emit({ type: 'done', status, notice, result, at: new Date().toISOString() }); // last event: the stream ends here
   return { status, notice, result, totals, attempts, entries, params };
 }
 
@@ -224,8 +224,8 @@ async function runDirect(ctx, req, emit = () => {}) {
   };
   const status = ok ? 'completed' : 'stopped';
   if (ok) emit({ type: 'output', call: entry?.callNo ?? 1, agent: 'direct', status: 'accepted', output: result.output });
-  emit({ type: 'done', status, notice: ok ? '' : result.reason, result: out, at: new Date().toISOString() });
   act(ok ? 'completed' : 'stopped', ok ? `Done. Spent ${fmt(t.spent)} of ${fmt(t.budget)} USDC.` : result.reason);
+  emit({ type: 'done', status, notice: ok ? '' : result.reason, result: out, at: new Date().toISOString() });
   return { status, notice: ok ? '' : result.reason, result: out, totals: t };
 }
 
