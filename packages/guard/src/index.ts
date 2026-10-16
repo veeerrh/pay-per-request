@@ -22,3 +22,5 @@ export * from './pay';
 export * from './sanitize';
 export * from './sanity';
 export * from './validate';
+export * from './chain';
+export * from './recover';

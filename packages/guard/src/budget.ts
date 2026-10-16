@@ -91,6 +91,9 @@ export class Budget {
   }
   commit(id: number): void { this.setState(id, 'spent'); }
   release(id: number): void { this.setState(id, 'released'); }
+  reservationFor(requestId: string): { id: number; state: string } | undefined {
+    return this.store.db.prepare('SELECT id, state FROM reservations WHERE request_id=?').get(requestId) as { id: number; state: string } | undefined;
+  }
   stateOf(id: number): string { return (this.store.db.prepare('SELECT state FROM reservations WHERE id=?').get(id) as { state: string }).state; }
 
   /**

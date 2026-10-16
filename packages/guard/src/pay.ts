@@ -23,6 +23,8 @@ export interface PayDeps {
   fetch?: typeof fetch;
   chain?: ChainReader;
   validate?: ValidateFn;
+  /** Returns true when the ledger chain failed verification: no new spending (M-62, S-84). */
+  halted?: () => boolean;
 }
 export interface PayRequest {
   requestId: string;
@@ -68,6 +70,9 @@ export async function pay(d: PayDeps, r: PayRequest): Promise<PayResult> {
   let actual: ReturnType<typeof termsOf> = null;
   let signed = false;
 
+  if (d.halted?.()) {
+    return { requestId: r.requestId, status: 'refused', verdict: 'STOP_TASK', ruleId: 'M-62', reason: 'spending is halted: the ledger hash chain failed verification', asked, paid: 0n, latencyMs: 0, txHash: null, signed: false };
+  }
   const base = { seller: r.seller.name, sellerId: r.seller.id, category: r.seller.category, listed: r.listing.price.toString(), listingHash: r.listingHash, url: r.url };
   d.store.appendEvent({ requestId: r.requestId, taskId: r.taskId, eventType: 'intent', payload: { ...base, asked: asked.toString(), paid: '0', status: 'pending', txHash: null, txConfirmed: false } });
 
