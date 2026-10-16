@@ -14,3 +14,8 @@ export * from './dryrun';
 export * from './store/store';
 export * from './budget';
 export * from './invariant';
+export * from './redact';
+export * from './http';
+export * from './signer';
+export * from './chain-types';
+export * from './pay';

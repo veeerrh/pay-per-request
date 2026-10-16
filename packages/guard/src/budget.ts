@@ -74,6 +74,8 @@ export class Budget {
   /** Synchronous and atomic. Never signs anything. */
   reserve(a: ReserveArgs): ReserveResult {
     return this.store.db.transaction((): ReserveResult => {
+      const dup = this.store.db.prepare('SELECT 1 FROM reservations WHERE request_id=?').get(a.requestId);
+      if (dup) return { ok: false, verdict: { verdict: 'REFUSE', ruleId: 'M-51', reason: 'an authorisation already exists for this request id' } };
       const verdict = limitVerdict(this.stateFor(a), a.amount, this.cfg);
       if (verdict) return { ok: false, verdict };
       const info = this.store.db

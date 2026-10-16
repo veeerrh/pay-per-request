@@ -58,7 +58,9 @@ describe('budget reservation (TC-2.2)', () => {
   it('duplicate request id cannot be reserved twice', () => {
     const { b } = setup(50000n);
     expect(b.reserve(args(1)).ok).toBe(true);
-    expect(() => b.reserve(args(1))).toThrow();
+    const again = b.reserve(args(1));
+    expect(again.ok).toBe(false);
+    if (!again.ok) expect(again.verdict.ruleId).toBe('M-51');
   });
 });
 

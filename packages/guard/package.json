@@ -5,6 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "dependencies": {
+    "@x402/core": "^2.28.0",
+    "@x402/evm": "^2.28.0",
     "ajv": "^8.20.0",
     "better-sqlite3": "^13.0.3",
     "canonicalize": "^5.1.0",
