@@ -1,1 +1,1 @@
-export const ready = true;
+export * from './netguard';
