@@ -1,0 +1,5 @@
+Milestone 3.2 (T-05) live replay against the echo seller, wallet: Beacon (replay wallet not funded yet).
+stage 1 once: 200 | stage 2 same header: 402 (facilitator refused used nonce) | stage 3 five parallel: 200, 409, 409, 409, 409
+transfers on chain: exactly 2 (one per signed payment)
+https://sepolia.basescan.org/tx/0x66d0c08706ecc68f129d02d27d526eaa3989154a04ad1776cc9134ced2c56618
+https://sepolia.basescan.org/tx/0x17b87470858a4477552c25e9cdd5c42e26045131a08931034df19880a8112004

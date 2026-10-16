@@ -1,0 +1,4 @@
+Milestone 3.1: unmodified @x402/fetch buyer pays the kit seller (echo, 1000 units). Test wallet: Beacon (spare not funded yet).
+paid call tx: https://sepolia.basescan.org/tx/0xed4da614101349ca0ad762b28577a4e35cd07e081143f55aa644280f5892b23c
+handler failure (fail=1): HTTP 500, no PAYMENT-RESPONSE, Beacon balance unchanged
+junk output (junk=1): HTTP 502, not settled, Beacon balance unchanged

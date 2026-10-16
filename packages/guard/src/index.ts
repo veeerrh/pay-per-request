@@ -24,3 +24,4 @@ export * from './sanity';
 export * from './validate';
 export * from './chain';
 export * from './recover';
+export * from './seller/claims';
