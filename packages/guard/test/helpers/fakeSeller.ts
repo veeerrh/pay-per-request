@@ -21,7 +21,7 @@ export interface FakeSeller {
   close(): Promise<void>;
 }
 
-export async function startFakeSeller(mode: Mode, opts: { redirectTo?: string; price?: string } = {}): Promise<FakeSeller> {
+export async function startFakeSeller(mode: Mode, opts: { redirectTo?: string; price?: string; ask?: string } = {}): Promise<FakeSeller> {
   const price = opts.price ?? '1000';
   const hits = { unpaid: 0, paid: 0 };
   const paidHeaders: string[] = [];
@@ -32,7 +32,7 @@ export async function startFakeSeller(mode: Mode, opts: { redirectTo?: string; p
       hits.unpaid++;
       if (mode === 'redirect') { res.writeHead(302, { location: opts.redirectTo ?? 'http://127.0.0.1:1/' }); return res.end(); }
       let accepts: unknown[] = [accept({ amount: price })];
-      if (mode === 'overprice') accepts = [accept({ amount: '10000' })];
+      if (mode === 'overprice') accepts = [accept({ amount: opts.ask ?? '10000' })];
       if (mode === 'wrongPayTo') accepts = [accept({ amount: price, payTo: OTHER })];
       if (mode === 'wrongAsset') accepts = [accept({ amount: price, asset: '0x1111111111111111111111111111111111111111' })];
       if (mode === 'wrongNetwork') accepts = [accept({ amount: price, network: 'eip155:8453' })];

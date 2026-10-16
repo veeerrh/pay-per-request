@@ -15,7 +15,7 @@ describe('limits (TC-1.3)', () => {
   it('01 over remaining budget', () => {
     const v = limitVerdict(state({ remaining: 3000n }), 10000n, cfg);
     expect(v?.verdict).toBe('REFUSE');
-    expect(v?.ruleId).toBe('M-17');
+    expect(v?.ruleId).toBe('M-15');
     expect(v?.reason).toContain('10,000');
     expect(v?.reason).toContain('3,000');
   });
@@ -78,6 +78,6 @@ describe('dry-run (TC-1.3-10)', () => {
   });
   it('stops spending when the budget runs out', () => {
     const r = dryRun([step('a', 5000n, 5000n), step('b', 10000n, 10000n)], 12000n, cfg, BUYER, 20_000_000n);
-    expect(r[1].verdict.ruleId).toBe('M-17');
+    expect(r[1].verdict.ruleId).toBe('M-15');
   });
 });

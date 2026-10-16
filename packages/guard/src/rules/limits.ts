@@ -20,7 +20,7 @@ const stop = (ruleId: string, reason: string): Verdict => ({ verdict: 'STOP_TASK
 export function limitVerdict(s: BudgetState, price: bigint, cfg: RulesConfig): Verdict | null {
   if (s.callsInTask >= cfg.perTaskCallLimit) return stop('M-21', `task reached its limit of ${cfg.perTaskCallLimit} calls`);
   if (s.elapsedSeconds > cfg.perTaskWallClockSeconds) return stop('M-21', `task ran longer than ${cfg.perTaskWallClockSeconds} seconds`);
-  if (price > s.remaining) return refuse('M-17', `needs ${fmtUnits(price)} units, ${fmtUnits(s.remaining)} remain in the budget`);
+  if (price > s.remaining) return refuse('M-15', `needs ${fmtUnits(price)} units, ${fmtUnits(s.remaining)} remain in the budget`);
   if (price > BigInt(cfg.perCallCeiling)) return refuse('M-18', `${fmtUnits(price)} units is above the call ceiling of ${fmtUnits(BigInt(cfg.perCallCeiling))}`);
   if (s.spentOnSeller + price > BigInt(cfg.perSellerCap)) return refuse('M-19', 'per-seller spending cap for this task would be exceeded');
   if (s.spentOnCategory + price > BigInt(cfg.perCategoryCap)) return refuse('M-19', 'per-category spending cap for this task would be exceeded');
