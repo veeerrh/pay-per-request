@@ -25,3 +25,4 @@ export * from './validate';
 export * from './chain';
 export * from './recover';
 export * from './seller/claims';
+export * from './reconcile';

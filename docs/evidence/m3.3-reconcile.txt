@@ -1,0 +1,7 @@
+Milestone 3.3 live evidence (T-02, S-72). Three real guard.pay() purchases from Beacon to the echo seller, 1000 units each.
+Call 2 timed out after signing (slow facilitator): ledger status PENDING, reservation held (S-28).
+Crash recovery then found the authorisation used on chain and marked it paid with the recovered hash.
+Reconciliation: ledger total 3000, chain total 3000, status MATCHED.
+https://sepolia.basescan.org/tx/0xfd8dc9a6ecbd998631d9112a4b843f6693bfd5df8fb0f44c9d497d60459bef2b
+https://sepolia.basescan.org/tx/0xe6d0ce3c9506fe0fa8a2d53d9c6eb5389495d0c05af2c9bb9525a02a12a73448
+https://sepolia.basescan.org/tx/0xb35aadffd2a53f018b890feb2deea4c67c38ed892d634213bf19f28992b77770

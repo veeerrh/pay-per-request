@@ -19,12 +19,41 @@ export function createPublicChainClient(rpcUrl = 'https://sepolia.base.org'): Pu
   return createPublicClient({ chain: baseSepolia, transport: http(rpcUrl, { timeout: 10_000, retryCount: 2 }) }) as PublicClient;
 }
 
-export function createChainReader(rpcUrl?: string): ChainReader & { client: PublicClient } {
+export interface ChainTransfer { txHash: string; to: string; value: bigint; blockNumber: bigint }
+export type ReceiptStatus = 'success' | 'reverted' | 'missing';
+
+/** Everything reconciliation needs, on top of the recovery reads. */
+export interface ReconcileChain extends ChainReader {
+  blockNumber(): Promise<bigint>;
+  /** USDC Transfer logs with from = `from`, starting at `fromBlock`. Throws if the chain cannot be read. */
+  getTransfersFrom(from: string, fromBlock: bigint): Promise<ChainTransfer[]>;
+  getReceiptStatus(txHash: string): Promise<ReceiptStatus>;
+  balanceOf(address: string): Promise<bigint>;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Retries with exponential backoff and jitter (429s, timeouts). Throws after the last attempt. */
+export async function withBackoff<T>(fn: () => Promise<T>, tries = 4, baseMs = 400): Promise<T> {
+  let last: unknown;
+  for (let i = 0; i < tries; i++) {
+    try { return await fn(); } catch (e) {
+      last = e;
+      if (i < tries - 1) await sleep(baseMs * 2 ** i + Math.floor(Math.random() * 150));
+    }
+  }
+  throw last;
+}
+
+export function createChainReader(rpcUrl?: string): ReconcileChain & { client: PublicClient } {
   const client = createPublicChainClient(rpcUrl);
+  const usdc = USDC_ADDRESS as `0x${string}`;
   return {
     client,
+    blockNumber: () => client.getBlockNumber(),
     authorizationState: (authorizer, nonce) =>
-      client.readContract({ address: USDC_ADDRESS as `0x${string}`, abi: USDC_ABI, functionName: 'authorizationState', args: [authorizer as `0x${string}`, nonce as `0x${string}`] }),
+      client.readContract({ address: usdc, abi: USDC_ABI, functionName: 'authorizationState', args: [authorizer as `0x${string}`, nonce as `0x${string}`] }),
+    balanceOf: (a) => client.readContract({ address: usdc, abi: USDC_ABI, functionName: 'balanceOf', args: [a as `0x${string}`] }),
     // The public RPC limits eth_getLogs to a 200 block range (found in a live check), so scan backwards in
     // chunks and stop at the first hit. Base Sepolia makes a block about every 2 seconds.
     async findAuthorizationUse(authorizer, nonce, lookbackBlocks = 1800) {
@@ -32,14 +61,32 @@ export function createChainReader(rpcUrl?: string): ChainReader & { client: Publ
       const floor = head > BigInt(lookbackBlocks) ? head - BigInt(lookbackBlocks) : 0n;
       for (let to = head; to >= floor; to -= LOG_RANGE) {
         const from = to - LOG_RANGE + 1n > floor ? to - LOG_RANGE + 1n : floor;
-        const logs = await client.getLogs({
-          address: USDC_ADDRESS as `0x${string}`, event: USDC_ABI[2], args: { authorizer: authorizer as `0x${string}`, nonce: nonce as `0x${string}` },
-          fromBlock: from, toBlock: to,
-        });
+        const logs = await withBackoff(() =>
+          client.getLogs({ address: usdc, event: USDC_ABI[2], args: { authorizer: authorizer as `0x${string}`, nonce: nonce as `0x${string}` }, fromBlock: from, toBlock: to }),
+        );
         if (logs.length) return { txHash: logs[0].transactionHash as string };
         if (from === floor) break;
       }
       return null;
+    },
+    async getTransfersFrom(from, fromBlock) {
+      const head = await client.getBlockNumber();
+      const out: ChainTransfer[] = [];
+      for (let start = fromBlock; start <= head; start += LOG_RANGE) {
+        const end = start + LOG_RANGE - 1n > head ? head : start + LOG_RANGE - 1n;
+        const logs = await withBackoff(() => client.getLogs({ address: usdc, event: USDC_ABI[3], args: { from: from as `0x${string}` }, fromBlock: start, toBlock: end }));
+        for (const l of logs) out.push({ txHash: (l.transactionHash as string).toLowerCase(), to: l.args.to as string, value: l.args.value as bigint, blockNumber: l.blockNumber as bigint });
+      }
+      return out;
+    },
+    async getReceiptStatus(txHash) {
+      try {
+        const r = await client.getTransactionReceipt({ hash: txHash as `0x${string}` });
+        return r.status === 'success' ? 'success' : 'reverted';
+      } catch (e) {
+        if (/not.?found|could not be found/i.test((e as Error).message)) return 'missing';
+        throw e;
+      }
     },
   };
 }
