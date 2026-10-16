@@ -11,3 +11,4 @@ export * from './config';
 export * from './rules/limits';
 export * from './rulehash';
 export * from './dryrun';
+export * from './store/store';
