@@ -1,0 +1,198 @@
+====================================================================================================
+AGENT MARKETPLACE -- TRANSACTION LEDGER
+generated: 2026-10-16T14:04:30.961Z
+network: eip155:84532 (Base Sepolia)  asset: USDC (6 decimals)
+====================================================================================================
+
+TEST CASES EXECUTED
+----------------------------------------------------------------------------------------------------
+[PASS] TC1 -- Happy path -- scraping seller
+    expected: 200, paid, tx hash present, valid output
+    actual:   status=paid tx=0xa4fe348b5715454d7ae57b4a5b52b8ae4d4f8c36836bd7e6b3e123de15a8a7ad
+
+[PASS] TC2 -- Happy path -- data (fx-rates) seller
+    expected: 200, paid, tx hash present, valid output
+    actual:   status=paid tx=0xa447123a6b594152f2410d170d978f19bbaec6610791ee3482fa5eed4eab17b4
+
+[PASS] TC3 -- Happy path -- inference (summarizer) seller
+    expected: 200, paid, tx hash present, valid output
+    actual:   status=paid tx=0x384356a156bd39329b25f27efaa23682db54770cfd5d6dd112331e00c52a7ce9
+
+[PASS] TC4 -- Rogue seller asks 10x listed price -- buyer must refuse and pay nothing
+    expected: refused, amount_paid=0
+    actual:   reason=price_check_failed amount_paid_units=0
+
+[PASS] TC5 -- Same signed payment sent twice, sequentially -- exactly one must succeed
+    expected: exactly 1 of 2 attempts settles
+    actual:   1 of 2 attempts settled (statuses: 200, 402)
+
+[PASS] TC6 -- Same signed payment sent 3x in parallel -- exactly one must succeed
+    expected: exactly 1 of 3 attempts settles
+    actual:   1 of 3 attempts settled (statuses: 200, 402, 402)
+
+[PASS] TC7 -- Seller handler throws before responding -- payment must not settle
+    expected: failed, amount_paid=0
+    actual:   reason=settlement_failed amount_paid_units=0
+
+[PASS] TC8 -- Seller settles normally but returns output missing a required field
+    expected: paid_output_rejected, amount_paid>0, data not used
+    actual:   reason=bad_output status=paid_output_rejected amount_paid_units=1000
+
+[PASS] TC9 -- Tiny budget (0.0015) covers 1st call (0.001) but not 2nd (0.002)
+    expected: call 1 paid, call 2 refused for budget, total spend never exceeds budget
+    actual:   call1=paid call2=refused(budget_exceeded) remaining=500
+
+
+FULL LEDGER (every attempted call, in order)
+----------------------------------------------------------------------------------------------------
+#1  2026-10-16T14:04:21.421Z
+   test case     : TC1 happy-path-scraper
+   buyer         : 0xcA8B76fe84fb56201d5d38472c6a1A0c1Ece4818
+   seller        : 0x3965AdCC24Cc206A1507B7368233913eaa26515F (scraper)
+   listed price  : 0.002 USDC
+   amount paid   : 0.002 USDC
+   status        : paid
+   tx hash       : 0xa4fe348b5715454d7ae57b4a5b52b8ae4d4f8c36836bd7e6b3e123de15a8a7ad
+   latency       : 1158 ms
+
+#2  2026-10-16T14:04:22.580Z
+   test case     : TC2 happy-path-fx-rates
+   buyer         : 0xcA8B76fe84fb56201d5d38472c6a1A0c1Ece4818
+   seller        : 0xF6A67dE25fa6F0e5A5DcFc97a704C7544519D847 (fx-rates)
+   listed price  : 0.001 USDC
+   amount paid   : 0.001 USDC
+   status        : paid
+   tx hash       : 0xa447123a6b594152f2410d170d978f19bbaec6610791ee3482fa5eed4eab17b4
+   latency       : 960 ms
+
+#3  2026-10-16T14:04:23.560Z
+   test case     : TC3 happy-path-summarizer
+   buyer         : 0xcA8B76fe84fb56201d5d38472c6a1A0c1Ece4818
+   seller        : 0x19A51203EADdf0c13D978920c0D43cCEaf4321A2 (summarizer)
+   listed price  : 0.01 USDC
+   amount paid   : 0.01 USDC
+   status        : paid
+   tx hash       : 0x384356a156bd39329b25f27efaa23682db54770cfd5d6dd112331e00c52a7ce9
+   latency       : 939 ms
+
+#4  2026-10-16T14:04:24.514Z
+   test case     : TC4 price-check-refusal
+   buyer         : 0xcA8B76fe84fb56201d5d38472c6a1A0c1Ece4818
+   seller        : 0xF6A67dE25fa6F0e5A5DcFc97a704C7544519D847 (fx-rates-rogue)
+   listed price  : 0.001 USDC
+   amount paid   : 0 USDC
+   status        : refused
+   tx hash       : -
+   latency       : 4 ms
+   notes         : price-check failed -- amount: listed 1000, asked 10000
+
+#5  2026-10-16T14:04:25.612Z
+   test case     : TC5 replay-sequential
+   buyer         : 0xcA8B76fe84fb56201d5d38472c6a1A0c1Ece4818
+   seller        : 0x3965AdCC24Cc206A1507B7368233913eaa26515F (scraper)
+   listed price  : 0.002 USDC
+   amount paid   : 0.002 USDC
+   status        : paid
+   tx hash       : 0x84ada81f047f86fb5b6cf4cb6168be4cddf6f0b24d95f69680bb76d7c0021a97
+   latency       : 1083 ms
+   notes         : first use of this signed payment
+
+#6  2026-10-16T14:04:26.496Z
+   test case     : TC5 replay-sequential
+   buyer         : 0xcA8B76fe84fb56201d5d38472c6a1A0c1Ece4818
+   seller        : 0x3965AdCC24Cc206A1507B7368233913eaa26515F (scraper)
+   listed price  : 0.002 USDC
+   amount paid   : 0 USDC
+   status        : failed
+   tx hash       : -
+   latency       : 883 ms
+   notes         : replay attempt #2 rejected -- status 402 {}
+
+#7  2026-10-16T14:04:27.420Z
+   test case     : TC6 replay-parallel
+   buyer         : 0xcA8B76fe84fb56201d5d38472c6a1A0c1Ece4818
+   seller        : 0xF6A67dE25fa6F0e5A5DcFc97a704C7544519D847 (fx-rates)
+   listed price  : 0.001 USDC
+   amount paid   : 0 USDC
+   status        : failed
+   tx hash       : -
+   latency       : 914 ms
+   notes         : replay attempt #2 rejected -- status 402 {}
+
+#8  2026-10-16T14:04:27.463Z
+   test case     : TC6 replay-parallel
+   buyer         : 0xcA8B76fe84fb56201d5d38472c6a1A0c1Ece4818
+   seller        : 0xF6A67dE25fa6F0e5A5DcFc97a704C7544519D847 (fx-rates)
+   listed price  : 0.001 USDC
+   amount paid   : 0 USDC
+   status        : failed
+   tx hash       : -
+   latency       : 957 ms
+   notes         : replay attempt #3 rejected -- status 402 {}
+
+#9  2026-10-16T14:04:27.623Z
+   test case     : TC6 replay-parallel
+   buyer         : 0xcA8B76fe84fb56201d5d38472c6a1A0c1Ece4818
+   seller        : 0xF6A67dE25fa6F0e5A5DcFc97a704C7544519D847 (fx-rates)
+   listed price  : 0.001 USDC
+   amount paid   : 0.001 USDC
+   status        : paid
+   tx hash       : 0x32e347daeda2ad8d6e10720860ba30deb2e78edbf83eac5da2625072928b7ecb
+   latency       : 1119 ms
+   notes         : first use of this signed payment
+
+#10  2026-10-16T14:04:27.624Z
+   test case     : TC7 seller-failure-no-charge
+   buyer         : 0xcA8B76fe84fb56201d5d38472c6a1A0c1Ece4818
+   seller        : 0x19A51203EADdf0c13D978920c0D43cCEaf4321A2 (summarizer-fail)
+   listed price  : 0.01 USDC
+   amount paid   : 0 USDC
+   status        : failed
+   tx hash       : -
+   latency       : 339 ms
+   notes         : seller/facilitator rejected payment -- status 500 {"error":"simulated inference backend crash"}
+
+#11  2026-10-16T14:04:27.964Z
+   test case     : TC8 bad-output-rejected
+   buyer         : 0xcA8B76fe84fb56201d5d38472c6a1A0c1Ece4818
+   seller        : 0xF6A67dE25fa6F0e5A5DcFc97a704C7544519D847 (fx-rates-malformed)
+   listed price  : 0.001 USDC
+   amount paid   : 0.001 USDC
+   status        : paid_output_rejected
+   tx hash       : 0x6ad6ab7296dba4f18790a4e5b3e68509b0ca7251e57bc010c8c815fa598e623b
+   latency       : 1055 ms
+   notes         : output missing required fields: rate -- data discarded, seller reputation lowered
+
+#12  2026-10-16T14:04:29.020Z
+   test case     : TC9 budget-cap
+   buyer         : 0xcA8B76fe84fb56201d5d38472c6a1A0c1Ece4818
+   seller        : 0xF6A67dE25fa6F0e5A5DcFc97a704C7544519D847 (fx-rates)
+   listed price  : 0.001 USDC
+   amount paid   : 0.001 USDC
+   status        : paid
+   tx hash       : 0xdba64f89f138bca3c2b6ed8a02a979ca40b7c491e4398d3d241ff86f2d3b6614
+   latency       : 1930 ms
+
+#13  2026-10-16T14:04:30.951Z
+   test case     : TC9 budget-cap
+   buyer         : 0xcA8B76fe84fb56201d5d38472c6a1A0c1Ece4818
+   seller        : 0x3965AdCC24Cc206A1507B7368233913eaa26515F (scraper)
+   listed price  : 0.002 USDC
+   amount paid   : 0 USDC
+   status        : refused
+   tx hash       : -
+   latency       : 7 ms
+   notes         : budget exceeded -- remaining 500 units, call needs 2000 units
+
+----------------------------------------------------------------------------------------------------
+TOTAL CALLS ATTEMPTED : 13
+TOTAL AMOUNT SETTLED  : 0.018 USDC
+====================================================================================================
+ON-CHAIN RECONCILIATION (checked via Base Sepolia RPC after the run)
+----------------------------------------------------------------------------------------------------
+buyer      0xcA8B76fe84fb56201d5d38472c6a1A0c1Ece4818  19,999,000 -> 19,981,000 units  (-18,000)
+scraper    0x3965AdCC24Cc206A1507B7368233913eaa26515F           0 ->      4,000 units  (+4,000)
+fx-rates   0xF6A67dE25fa6F0e5A5DcFc97a704C7544519D847           0 ->      4,000 units  (+4,000)
+summarizer 0x19A51203EADdf0c13D978920c0D43cCEaf4321A2           0 ->     10,000 units  (+10,000)
+Ledger total settled (0.018 USDC = 18,000 units) matches the buyer's balance drop to the unit.
+====================================================================================================

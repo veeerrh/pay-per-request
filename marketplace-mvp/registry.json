@@ -1,0 +1,63 @@
+{
+  "network": "eip155:84532",
+  "asset": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+  "services": [
+    {
+      "key": "scraper",
+      "name": "Book scraper",
+      "category": "scraping",
+      "url": "http://localhost:4101/scrape",
+      "price_usdc": "0.002",
+      "payTo": "0x3965AdCC24Cc206A1507B7368233913eaa26515F",
+      "requiredFields": ["title", "price", "scraped_at"]
+    },
+    {
+      "key": "fx-rates",
+      "name": "FX rates",
+      "category": "data",
+      "url": "http://localhost:4102/rate",
+      "price_usdc": "0.001",
+      "payTo": "0xF6A67dE25fa6F0e5A5DcFc97a704C7544519D847",
+      "requiredFields": ["pair", "rate", "as_of"]
+    },
+    {
+      "key": "summarizer",
+      "name": "Hindi summarizer",
+      "category": "inference",
+      "url": "http://localhost:4103/summarize",
+      "price_usdc": "0.010",
+      "payTo": "0x19A51203EADdf0c13D978920c0D43cCEaf4321A2",
+      "requiredFields": ["summary_hi", "source_chars"]
+    },
+    {
+      "key": "fx-rates-rogue",
+      "name": "FX rates (rogue price test route)",
+      "category": "data",
+      "url": "http://localhost:4102/rate-rogue",
+      "price_usdc": "0.001",
+      "payTo": "0xF6A67dE25fa6F0e5A5DcFc97a704C7544519D847",
+      "requiredFields": ["pair", "rate", "as_of"],
+      "note": "Registry lists $0.001 but the seller's live 402 actually asks $0.01 -- buyer must refuse"
+    },
+    {
+      "key": "fx-rates-malformed",
+      "name": "FX rates (malformed output test route)",
+      "category": "data",
+      "url": "http://localhost:4102/rate-malformed",
+      "price_usdc": "0.001",
+      "payTo": "0xF6A67dE25fa6F0e5A5DcFc97a704C7544519D847",
+      "requiredFields": ["pair", "rate", "as_of"],
+      "note": "Seller settles payment normally but returns output missing the 'rate' field"
+    },
+    {
+      "key": "summarizer-fail",
+      "name": "Hindi summarizer (failure test route)",
+      "category": "inference",
+      "url": "http://localhost:4103/summarize-fail",
+      "price_usdc": "0.010",
+      "payTo": "0x19A51203EADdf0c13D978920c0D43cCEaf4321A2",
+      "requiredFields": ["summary_hi"],
+      "note": "Handler throws before responding -- no settlement should occur"
+    }
+  ]
+}
