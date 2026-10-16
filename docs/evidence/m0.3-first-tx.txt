@@ -1,0 +1,6 @@
+First paid x402 call (Milestone 0.3), Base Sepolia testnet
+tx: 0xefd09d138e7268b1cdd9b68bfb89e3d7bc02262587968814da822fc38a2f4d03
+explorer: https://sepolia.basescan.org/tx/0xefd09d138e7268b1cdd9b68bfb89e3d7bc02262587968814da822fc38a2f4d03
+from: Beacon 0xADb43a17Cb94d4125f45522d815060B58A71dcCb
+to (payTo): 0xa366aAD15525e2D344A17272a20313983e81F7C3 (atlas address)
+amount: 1000 units (0.001 USDC), verified via receipt Transfer log
