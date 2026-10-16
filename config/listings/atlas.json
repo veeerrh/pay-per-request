@@ -1,0 +1,60 @@
+{
+  "name": "Atlas",
+  "category": "scraping",
+  "price": "5000",
+  "port": 4011,
+  "path": "/countries",
+  "method": "GET",
+  "description": "Honest scraper. Checks robots.txt, fetches a public country list and returns the top N countries by population or area.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "top": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10
+      },
+      "by": {
+        "enum": [
+          "population",
+          "area"
+        ]
+      }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "required": [
+      "countries"
+    ],
+    "properties": {
+      "countries": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": [
+            "name",
+            "population"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "capital": {
+              "type": "string"
+            },
+            "population": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "area_km2": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}

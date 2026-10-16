@@ -1,0 +1,4 @@
+Milestone 5.1 live calls (Beacon wallet, unmodified @x402/fetch buyer), real upstreams.
+Atlas  /countries?top=3&by=population  5000 units  https://sepolia.basescan.org/tx/0x710639a0bd7745bcd7a8a34c92e692020695d7d9d9131b13ba2c5b2c954225b3
+Tremor /quakes?country=India&days=7&minMag=4.5  2000 units (real USGS data)  https://sepolia.basescan.org/tx/0x080f7f5deba72831fcdf9f758af121ce009f1a6b038ea7ecdd876c7fc54d2381
+Brief: covered by stub tests here, exercised live in 5.3.

@@ -1,0 +1,64 @@
+{
+  "name": "Brief",
+  "category": "inference",
+  "price": "10000",
+  "port": 4013,
+  "path": "/brief",
+  "method": "POST",
+  "description": "Honest inference seller. Writes a short readiness brief for up to 2 countries from data you already bought (rule-based scorer).",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "countries"
+    ],
+    "properties": {
+      "countries": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 2,
+        "items": {
+          "type": "object",
+          "required": [
+            "name",
+            "quakes"
+          ]
+        }
+      }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "required": [
+      "briefs"
+    ],
+    "properties": {
+      "briefs": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": [
+            "country",
+            "readiness",
+            "brief"
+          ],
+          "properties": {
+            "country": {
+              "type": "string"
+            },
+            "readiness": {
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            },
+            "brief": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}
