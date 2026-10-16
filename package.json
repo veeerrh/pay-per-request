@@ -10,7 +10,8 @@
     "build": "tsc -p packages/guard",
     "typecheck": "tsc --noEmit -p packages/guard",
     "test": "npm run build && vitest run",
-    "test:guard": "vitest run packages/guard"
+    "test:guard": "vitest run packages/guard",
+    "dry-run": "node scripts/dry-run.js"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",

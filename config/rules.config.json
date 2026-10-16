@@ -1,0 +1,21 @@
+{
+  "maxTimeoutSeconds": 120,
+  "oddDropRatioPct": 50,
+  "perCallCeiling": "100000",
+  "fallbackLimit": 3,
+  "probationAttempts": 3,
+  "dropThreshold": 0.5,
+  "reputationWindow": 50,
+  "weights": { "fraud": 5, "junk": 3, "availability": 1 },
+  "coolingOffSeconds": 900,
+  "perTaskCallLimit": 20,
+  "perTaskWallClockSeconds": 300,
+  "perSellerCap": "50000",
+  "perCategoryCap": "100000",
+  "sessionCap": "2000000",
+  "rollingHourCap": "1000000",
+  "balanceFloor": "100000",
+  "probationSpendCap": "20000",
+  "requestTimeoutMs": 15000,
+  "maxBodyBytes": 262144
+}

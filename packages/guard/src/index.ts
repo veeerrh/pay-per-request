@@ -7,3 +7,7 @@ export * from './contract/verdict';
 export * from './contract/ledger-row';
 export * from './contract/facts';
 export * from './engine';
+export * from './config';
+export * from './rules/limits';
+export * from './rulehash';
+export * from './dryrun';
