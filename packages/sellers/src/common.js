@@ -1,5 +1,5 @@
 // Shared bootstrap for every seller process. A seller holds ONLY a receiving address, never a private key (M-71).
-require('dotenv').config({ path: require('path').join(__dirname, '..', '..', '..', '.env'), quiet: true });
+// It deliberately does NOT load .env: the launcher passes an explicit allowlist of variables (scripts/lib/services.js).
 const path = require('path');
 const fs = require('fs');
 const { createSellerApp } = require('./kit');

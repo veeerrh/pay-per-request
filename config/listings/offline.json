@@ -1,0 +1,63 @@
+{
+  "name": "Offline",
+  "category": "scraping",
+  "price": "4000",
+  "port": 4024,
+  "path": "/countries",
+  "method": "GET",
+  "description": "Test vendor: its handler fails on every request, so it never charges.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "top": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10
+      },
+      "by": {
+        "enum": [
+          "population",
+          "area"
+        ]
+      }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "required": [
+      "countries"
+    ],
+    "properties": {
+      "countries": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": [
+            "name",
+            "population"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "capital": {
+              "type": "string"
+            },
+            "population": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "area_km2": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        }
+      }
+    }
+  },
+  "labels": [
+    "test-vendor"
+  ]
+}

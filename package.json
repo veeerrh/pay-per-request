@@ -12,7 +12,9 @@
     "test": "npm run build && vitest run",
     "test:guard": "vitest run packages/guard",
     "dry-run": "node scripts/dry-run.js",
-    "invariant": "node scripts/invariant.js"
+    "invariant": "node scripts/invariant.js",
+    "start": "node scripts/start-all.js",
+    "start:sellers": "node scripts/start-all.js --sellers"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",

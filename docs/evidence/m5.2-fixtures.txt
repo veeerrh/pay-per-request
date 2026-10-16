@@ -1,0 +1,5 @@
+Milestone 5.2 live check through guard.pay() (real signer, real facilitator), Beacon wallet:
+overquote  REFUSED  M-17  paid 0     402 asked 20,000 against listed 2,000
+redirect   REFUSED  S-06  paid 0     payTo differs from listing
+offline    FAILED   S-27  paid 0     500 after signing, authorisation unused on chain, nothing charged
+hollow     REJECTED M-24  paid 8000  https://sepolia.basescan.org/tx/0x0c40441958daa35b1e7cf7453c00e7a506a481393c4b857052c151c0983c4107
