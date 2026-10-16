@@ -5,3 +5,5 @@ export * from './contract/listing';
 export * from './contract/payment-required';
 export * from './contract/verdict';
 export * from './contract/ledger-row';
+export * from './contract/facts';
+export * from './engine';
