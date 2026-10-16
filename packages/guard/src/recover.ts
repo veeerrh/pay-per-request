@@ -10,7 +10,7 @@ export interface RecoveryRow { requestId: string; outcome: RecoveryOutcome; reas
  * Resolves every purchase that was signed but never finished (M-32, M-52, S-31, S-72).
  * The rule: the budget is released only when the authorisation is known unused AND expired, or never signed.
  */
-export async function recoverPending(d: { store: Store; budget: Budget; chain: ChainReader; signerAddress: string; nowSeconds?: () => number; log?: LogFn }): Promise<RecoveryRow[]> {
+export async function recoverPending(d: { store: Store; budget: Budget; chain: ChainReader; signerAddress: string; cfgMaxTimeoutSeconds?: number; nowSeconds?: () => number; log?: LogFn }): Promise<RecoveryRow[]> {
   const now = d.nowSeconds ?? (() => Math.floor(Date.now() / 1000));
   const out: RecoveryRow[] = [];
   for (const i of d.store.unfinishedIntents()) {
@@ -31,7 +31,10 @@ export async function recoverPending(d: { store: Store; budget: Budget; chain: C
       }
       const used = await d.chain.authorizationState(d.signerAddress, i.nonce);
       if (used) {
-        const use = d.chain.findAuthorizationUse ? await d.chain.findAuthorizationUse(d.signerAddress, i.nonce) : null;
+        // Look back from now to just before the authorisation was created (blocks are about 2 s apart), with margin.
+        const ageSeconds = i.validBefore !== null ? Math.max(0, now() - (i.validBefore - (d.cfgMaxTimeoutSeconds ?? 120))) : 3600;
+        const lookback = Math.min(7200, Math.max(400, Math.ceil(ageSeconds / 2) + 200));
+        const use = d.chain.findAuthorizationUse ? await d.chain.findAuthorizationUse(d.signerAddress, i.nonce, lookback) : null;
         finish('paid', 'S-72', 'response was lost; the chain shows the authorisation was used, recovered as paid', use?.txHash);
         out.push({ requestId: i.requestId, outcome: 'paid', reason: 'authorisation used on chain', txHash: use?.txHash });
       } else if (i.validBefore !== null && now() > i.validBefore) {
@@ -51,7 +54,7 @@ export async function recoverPending(d: { store: Store; budget: Budget; chain: C
 export interface GuardStart { spendingHalted: boolean; reason?: string; recovered: RecoveryRow[] }
 
 /** Startup order: verify the ledger chain, then resolve pending purchases, then open for tasks (M-62, S-84). */
-export async function startGuard(d: { store: Store; budget: Budget; chain: ChainReader; signerAddress: string; nowSeconds?: () => number; log?: LogFn }): Promise<GuardStart> {
+export async function startGuard(d: { store: Store; budget: Budget; chain: ChainReader; signerAddress: string; cfgMaxTimeoutSeconds?: number; nowSeconds?: () => number; log?: LogFn }): Promise<GuardStart> {
   const c = d.store.verifyChain();
   if (!c.ok) {
     d.log?.('error', 'ledger hash chain is broken; spending halted', { brokenAt: c.brokenAt });
