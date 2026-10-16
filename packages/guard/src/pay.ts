@@ -31,6 +31,8 @@ export interface PayRequest {
   listing: ListingSnapshot;
   listingHash: string;
   liveListingHash?: string;
+  /** Output validator for this seller (schema, sanity, quarantine). Falls back to deps.validate, then JSON-only. */
+  validate?: ValidateFn;
   url: string;
   method?: 'GET' | 'POST';
   body?: string;
@@ -69,11 +71,12 @@ export async function pay(d: PayDeps, r: PayRequest): Promise<PayResult> {
   const base = { seller: r.seller.name, sellerId: r.seller.id, category: r.seller.category, listed: r.listing.price.toString(), listingHash: r.listingHash, url: r.url };
   d.store.appendEvent({ requestId: r.requestId, taskId: r.taskId, eventType: 'intent', payload: { ...base, asked: asked.toString(), paid: '0', status: 'pending', txHash: null, txConfirmed: false } });
 
-  const done = (status: LedgerStatus, verdict: PayResult['verdict'], ruleId: string, reason: string, extra: Partial<PayResult> & { schema?: unknown } = {}): PayResult => {
+  const done = (status: LedgerStatus, verdict: PayResult['verdict'], ruleId: string, reason: string, extra: Partial<PayResult> & { schema?: unknown; rawOutput?: string } = {}): PayResult => {
     const res: PayResult = { requestId: r.requestId, status, verdict, ruleId, reason, asked, paid: 0n, latencyMs: Date.now() - t0, txHash: null, signed, ...extra };
     const payload = {
       asked: asked.toString(), paid: res.paid.toString(), status, latencyMs: res.latencyMs, txHash: res.txHash, txConfirmed: false, ruleId, reason,
       terms: { expected: exp, actual }, schema: extra.schema ?? { state: 'not_run', detail: '' },
+      ...(extra.rawOutput ? { rawOutput: extra.rawOutput } : {}),
     };
     // A held result is not final: it stays pending until recovery resolves it (M-52).
     d.store.appendEvent({ requestId: r.requestId, taskId: r.taskId, eventType: status === 'pending' ? 'sent' : 'final', payload });
@@ -180,9 +183,10 @@ export async function pay(d: PayDeps, r: PayRequest): Promise<PayResult> {
       const txHash = settle.transaction;
       const paid = chosen.amount;
       if (paidRes.truncated) return { outcome: 'spent', value: done('rejected', 'ACCEPT_FLAG', 'S-36', 'response exceeded the size cap; payment already moved', { paid, txHash }) };
-      const v = d.validate ? d.validate(paidRes.body, { sellerId: r.seller.id, category: r.seller.category }) : tryJson(paidRes.body);
+      const vfn = r.validate ?? d.validate;
+      const v = vfn ? vfn(paidRes.body, { sellerId: r.seller.id, category: r.seller.category }) : tryJson(paidRes.body);
       if (!v.ok) {
-        return { outcome: 'spent', value: done('rejected', 'ACCEPT_FLAG', v.ruleId ?? 'M-27', v.reason, { paid, txHash, schema: { state: 'failed', detail: v.reason } }) };
+        return { outcome: 'spent', value: done('rejected', 'ACCEPT_FLAG', v.ruleId ?? 'M-27', v.reason, { paid, txHash, schema: { state: 'failed', detail: v.reason }, rawOutput: paidRes.body.slice(0, 2000) }) };
       }
       return { outcome: 'spent', value: done('paid', 'ALLOW', 'M-17', 'paid and validated', { paid, txHash, output: v.output, schema: { state: 'passed', detail: 'output accepted' } }) };
     },

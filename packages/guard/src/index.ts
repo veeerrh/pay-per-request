@@ -19,3 +19,6 @@ export * from './http';
 export * from './signer';
 export * from './chain-types';
 export * from './pay';
+export * from './sanitize';
+export * from './sanity';
+export * from './validate';
