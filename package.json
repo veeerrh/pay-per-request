@@ -1,0 +1,22 @@
+{
+  "name": "di06-pay-per-call",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "setup-hooks": "git config core.hooksPath .githooks",
+    "build": "tsc -p packages/guard",
+    "typecheck": "tsc --noEmit -p packages/guard",
+    "test": "npm run build && vitest run",
+    "test:guard": "vitest run packages/guard"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.5",
+    "fast-check": "^4.10.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}
