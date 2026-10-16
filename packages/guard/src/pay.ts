@@ -152,24 +152,33 @@ export async function pay(d: PayDeps, r: PayRequest): Promise<PayResult> {
         return { outcome: 'released', value: done('refused', 'REFUSE', 'M-51', 'an authorisation already exists for this request id') };
       }
       const rawJson = JSON.parse(Buffer.from(h1, 'base64').toString('utf8')) as { accepts: unknown[] };
-      let sp;
-      try {
-        sp = await d.signer.signPayment({ ...rawJson, accepts: [rawJson.accepts[ev.chosenIndex as number]] });
-      } catch (e) {
-        return { outcome: 'released', value: done('failed', 'RELEASE', 'M-37', `signing failed: ${(e as Error).message}`) };
-      }
-      signed = true;
-      d.store.setIntentState(r.requestId, 'signed', { nonce: sp.nonce, validBefore: sp.validBefore });
-      d.store.appendEvent({ requestId: r.requestId, taskId: r.taskId, eventType: 'signed', payload: { nonce: sp.nonce, validBefore: sp.validBefore } });
-      d.store.setIntentState(r.requestId, 'sent');
-      d.store.appendEvent({ requestId: r.requestId, taskId: r.taskId, eventType: 'sent', payload: {} });
-
-      let paidRes: HttpResult;
-      try {
-        paidRes = await limitedFetch(f, r.url, { method: r.method ?? 'GET', body: r.body, headers: { ...(r.body ? { 'content-type': 'application/json' } : {}), ...sp.headers } }, opt);
-      } catch (e) {
-        // Timeout or network error after signing: the authorisation may still be settled. Hold until it expires (S-28, M-52).
-        return { outcome: 'held', value: done('pending', 'HOLD', 'S-28', `no response after signing (${(e as Error).message}); reservation held until the authorisation expires`) };
+      let sp!: Awaited<ReturnType<Signer['signPayment']>>;
+      let paidRes!: HttpResult;
+      // A transient 402 on the paid request (the facilitator or seller could not verify the payment) gets ONE retry
+      // with a fresh signature, but only once the old nonce is confirmed unused on chain (M-52).
+      for (let round = 0; round < 2; round++) {
+        try {
+          sp = await d.signer.signPayment({ ...rawJson, accepts: [rawJson.accepts[ev.chosenIndex as number]] });
+        } catch (e) {
+          return { outcome: 'released', value: done('failed', 'RELEASE', 'M-37', `signing failed: ${(e as Error).message}`) };
+        }
+        signed = true;
+        d.store.setIntentState(r.requestId, 'signed', { nonce: sp.nonce, validBefore: sp.validBefore });
+        d.store.appendEvent({ requestId: r.requestId, taskId: r.taskId, eventType: 'signed', payload: { nonce: sp.nonce, validBefore: sp.validBefore } });
+        d.store.setIntentState(r.requestId, 'sent');
+        d.store.appendEvent({ requestId: r.requestId, taskId: r.taskId, eventType: 'sent', payload: {} });
+        try {
+          paidRes = await limitedFetch(f, r.url, { method: r.method ?? 'GET', body: r.body, headers: { ...(r.body ? { 'content-type': 'application/json' } : {}), ...sp.headers } }, opt);
+        } catch (e) {
+          // Timeout or network error after signing: the authorisation may still be settled. Hold until it expires (S-28, M-52).
+          return { outcome: 'held', value: done('pending', 'HOLD', 'S-28', `no response after signing (${(e as Error).message}); reservation held until the authorisation expires`) };
+        }
+        if (paidRes.status === 402 && round === 0 && d.chain) {
+          let unused = false;
+          try { unused = (await d.chain.authorizationState(d.signer.address, sp.nonce)) === false; } catch { unused = false; }
+          if (unused) { log('warn', `call ${r.requestId}: seller answered 402 to a signed payment; retrying once with a fresh signature`); continue; }
+        }
+        break;
       }
       if (paidRes.status >= 300 && paidRes.status < 400) {
         return { outcome: 'held', value: done('pending', 'HOLD', 'S-25', 'redirect on the paid request was not followed; reservation held until the authorisation expires') };

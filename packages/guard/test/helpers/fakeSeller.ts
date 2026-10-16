@@ -4,7 +4,7 @@ import { USDC_ADDRESS } from '../../src';
 
 export type Mode =
   | 'honest' | 'overprice' | 'wrongPayTo' | 'wrongAsset' | 'wrongNetwork' | 'multiAccepts' | 'redirect' | 'redirectPaid'
-  | 'changeTerms' | 'hang' | 'error5xx' | 'junk' | 'noPaymentResponse' | 'bigBody';
+  | 'changeTerms' | 'flaky402' | 'hang' | 'error5xx' | 'junk' | 'noPaymentResponse' | 'bigBody';
 
 export const SELLER_PAYTO = '0xc4A183e8fA3d4093ec16D580182ae7056C878643';
 const OTHER = '0x000000000000000000000000000000000000dEaD';
@@ -44,6 +44,7 @@ export async function startFakeSeller(mode: Mode, opts: { redirectTo?: string; p
     hits.paid++;
     paidHeaders.push(String(sig));
     const settled = { 'payment-response': b64({ success: true, transaction: '0x' + 'ab'.repeat(32), network: 'eip155:84532', payer: '0xADb43a17Cb94d4125f45522d815060B58A71dcCb' }), 'content-type': 'application/json' };
+    if (mode === 'flaky402' && hits.paid === 1) { res.writeHead(402, { 'payment-required': b64({ x402Version: 2, accepts: [accept({ amount: price })] }) }); return res.end('{}'); }
     if (mode === 'hang') { open.push(res); return; }
     if (mode === 'error5xx') { res.writeHead(500); return res.end('{"error":"boom"}'); }
     if (mode === 'redirectPaid') { res.writeHead(302, { location: opts.redirectTo ?? 'http://127.0.0.1:1/' }); return res.end(); }

@@ -15,8 +15,21 @@ function parseQuery(q) {
 
 function createTremor(opts = {}) {
   const fetchImpl = opts.fetch || fetch;
+  const cache = new Map(); // short cache so parallel identical questions do not hammer the public API
+  const TTL = 60_000;
+  const usgs = async (url) => {
+    let last;
+    for (let i = 0; i < 2; i++) {
+      try {
+        const res = await fetchImpl(url, { signal: AbortSignal.timeout(12000) });
+        if (!res.ok) throw new Error(`USGS answered ${res.status}`);
+        return await res.json();
+      } catch (e) { last = e; }
+    }
+    throw last;
+  };
   return boot('tremor', 4012, {
-    method: 'GET', path: '/quakes', priceUnits: '2000',
+    method: 'GET', path: '/quakes', priceUnits: '2000', handlerTimeoutMs: 28000,
     description: 'Queries the public USGS earthquake catalog for a country region.',
     inputCheck: (req) => {
       const p = parseQuery(req.query);
@@ -30,9 +43,11 @@ function createTremor(opts = {}) {
       const g = geo[p.country];
       const start = new Date(Date.now() - p.days * 86400000).toISOString();
       const url = `${USGS}?format=geojson&latitude=${g.lat}&longitude=${g.lon}&maxradiuskm=${g.radiusKm}&minmagnitude=${p.minMag}&starttime=${encodeURIComponent(start)}&orderby=time&limit=20`;
-      const res = await fetchImpl(url, { signal: AbortSignal.timeout(10000) });
-      if (!res.ok) throw new Error(`USGS answered ${res.status}`);
-      const j = await res.json();
+      const key = `${p.country}|${p.days}|${p.minMag}`;
+      const hit = cache.get(key);
+      let j;
+      if (hit && Date.now() - hit.at < TTL) j = hit.j;
+      else { j = await usgs(url); cache.set(key, { at: Date.now(), j }); }
       const quakes = (j.features || []).map((f) => ({ magnitude: f.properties.mag, place: String(f.properties.place || '').slice(0, 120), time: new Date(f.properties.time).toISOString() }));
       return { country: p.country, window_days: p.days, quakes };
     },

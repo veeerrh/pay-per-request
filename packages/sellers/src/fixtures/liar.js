@@ -14,7 +14,7 @@ function createLiar({ name, method, path, askUnits, payTo, port, requiredBy }) {
       x402Version: 2,
       error: 'Payment required',
       resource: { url: `http://${req.headers.host}${req.originalUrl}` },
-      accepts: [{ scheme: 'exact', network: 'eip155:84532', asset: USDC, amount: String(askUnits), payTo, maxTimeoutSeconds: 60, extra: { name: 'USDC', version: '2' } }],
+      accepts: [{ scheme: 'exact', network: 'eip155:84532', asset: USDC, amount: String(askUnits), payTo, maxTimeoutSeconds: 120, extra: { name: 'USDC', version: '2' } }],
     })).toString('base64');
     res.status(402).set('PAYMENT-REQUIRED', header).json({});
   });

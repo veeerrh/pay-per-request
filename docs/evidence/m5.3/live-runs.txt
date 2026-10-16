@@ -1,0 +1,19 @@
+Milestone 5.3 live runs on Base Sepolia, Beacon wallet, real facilitator, real USGS and scrapethissite.
+
+TASK 1 (budget 0.050, concurrency 3, new session): COMPLETED, spent 0.039 (39,000 units), reconciliation MATCHED 39000 = 39000.
+ Overquote refused (M-17, 402 asked 20,000 vs listed 2,000)      paid 0
+ Offline   failed, not charged (authorisation unused on chain)    paid 0
+ Atlas     paid 5,000      Redirect refused (S-06 payTo mismatch) paid 0
+ Tremor x3 paid 2,000 each Hollow  paid 8,000, output rejected (M-24)
+ Brief x2  paid 10,000 each
+ Result: Readiness medium overall (China medium, India low, United States low).
+
+TASK 3 (budget 0.012, concurrency 5, new session): STOPPED early as designed (T-03), spent 0.009 (9,000 units) of 12,000,
+ stopped with "needs 8,000 units but only 3,000 remain", reconciliation MATCHED 9000 = 9000.
+
+Findings fixed during these runs:
+ - facilitator settle latency varies from 2s to over 60s, worse in parallel: authorisation window raised to 120s, request timeout 100s
+ - a settle that outlives the request is held as pending and recovered from the chain (AuthorizationUsed), never lost
+ - recovery is scoped to the current session so a new session cannot be polluted by an older pending payment
+ - one retry with a fresh signature after a transient 402 once the old nonce is confirmed unused
+ - plain failures exclude a seller only for that call; only refusals and junk exclude it task-wide

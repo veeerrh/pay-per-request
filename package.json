@@ -14,7 +14,8 @@
     "dry-run": "node scripts/dry-run.js",
     "invariant": "node scripts/invariant.js",
     "start": "node scripts/start-all.js",
-    "start:sellers": "node scripts/start-all.js --sellers"
+    "start:sellers": "node scripts/start-all.js --sellers",
+    "task": "node packages/buyer/src/cli.js"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",

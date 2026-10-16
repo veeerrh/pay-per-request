@@ -33,13 +33,17 @@ export interface StepDeps {
 export async function runStep(d: StepDeps): Promise<StepOutcome> {
   const attempts: StepAttempt[] = [];
   let tried = 0;
-  const first = selectCandidates({ category: d.category, listings: d.listings, reputation: d.reputation, exclusions: d.exclusions, remaining: d.remaining(), buyerAddress: d.buyerAddress, cfg: d.cfg, spentBySeller: d.spentBySeller });
+  // Task-wide exclusion is for sellers that LIED (refused) or sent junk (rejected), M-13. A plain failure or
+  // timeout only excludes the seller for this call, so one transient error cannot kill a whole step.
+  const local = new Set<string>();
+  const blocked = () => new Set([...d.exclusions, ...local]);
+  const first = selectCandidates({ category: d.category, listings: d.listings, reputation: d.reputation, exclusions: blocked(), remaining: d.remaining(), buyerAddress: d.buyerAddress, cfg: d.cfg, spentBySeller: d.spentBySeller });
   const order = first.candidates.map((c) => c.id);
 
   for (const id of order) {
     if (tried >= d.cfg.fallbackLimit) break;
-    if (d.exclusions.has(id)) continue; // another parallel call in this task may have just excluded it
-    const fresh = selectCandidates({ category: d.category, listings: d.listings, reputation: d.reputation, exclusions: d.exclusions, remaining: d.remaining(), buyerAddress: d.buyerAddress, cfg: d.cfg, spentBySeller: d.spentBySeller });
+    if (blocked().has(id)) continue; // another parallel call in this task may have just excluded it
+    const fresh = selectCandidates({ category: d.category, listings: d.listings, reputation: d.reputation, exclusions: blocked(), remaining: d.remaining(), buyerAddress: d.buyerAddress, cfg: d.cfg, spentBySeller: d.spentBySeller });
     const c = fresh.candidates.find((x) => x.id === id);
     if (!c) continue; // became unaffordable or excluded meanwhile
     tried++;
@@ -51,18 +55,19 @@ export async function runStep(d: StepDeps): Promise<StepOutcome> {
     }
     if (result.paid > 0n) d.spentBySeller.set(c.id, (d.spentBySeller.get(c.id) ?? 0n) + result.paid);
     if (result.verdict === 'STOP_TASK') return { attempts, stop: { code: 'budget_exhausted', message: result.reason } };
-    d.exclusions.add(c.id); // refused, failed, rejected or held: never try this seller again in this task
+    if (result.status === 'refused' || result.status === 'rejected') d.exclusions.add(c.id); // liars and junk sellers: never again in this task (M-13)
+    else local.add(c.id); // failed or held: do not retry within this call
   }
 
   // Nothing was bought. Explain exactly why.
-  const now = selectCandidates({ category: d.category, listings: d.listings, reputation: d.reputation, exclusions: d.exclusions, remaining: d.remaining(), buyerAddress: d.buyerAddress, cfg: d.cfg, spentBySeller: d.spentBySeller });
+  const now = selectCandidates({ category: d.category, listings: d.listings, reputation: d.reputation, exclusions: blocked(), remaining: d.remaining(), buyerAddress: d.buyerAddress, cfg: d.cfg, spentBySeller: d.spentBySeller });
   if (tried >= d.cfg.fallbackLimit) {
     const list = attempts.map((a) => `${a.sellerName} (${a.result.status}: ${a.result.reason})`).join('; ');
     return { attempts, stop: { code: 'fallback_exhausted', message: `fallback limit of ${d.cfg.fallbackLimit} reached for ${d.category}. Tried: ${list}` } };
   }
   const unaffordable = first.skipped.concat(now.skipped).filter((s) => s.code === 'unaffordable');
   if (unaffordable.length && now.candidates.length === 0) {
-    const cheapest = d.listings.filter((l) => l.category === d.category && !d.exclusions.has(l.id) && unaffordable.some((u) => u.id === l.id)).sort((a, b) => (a.price < b.price ? -1 : 1))[0];
+    const cheapest = d.listings.filter((l) => l.category === d.category && !blocked().has(l.id) && unaffordable.some((u) => u.id === l.id)).sort((a, b) => (a.price < b.price ? -1 : 1))[0];
     const need = cheapest ? cheapest.price : 0n;
     return { attempts, stop: { code: 'budget_too_low', message: `${d.category} step needs ${fmtUnits(need)} units (${cheapest?.name ?? 'cheapest eligible seller'}) but only ${fmtUnits(d.remaining())} remain; ${fmtUnits(need - d.remaining())} more units are needed` } };
   }

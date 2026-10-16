@@ -2,5 +2,9 @@
   "name": "@di06/buyer",
   "version": "0.1.0",
   "private": true,
-  "main": "src/index.js"
+  "main": "src/index.js",
+  "dependencies": {
+    "@di06/guard": "^0.1.0",
+    "dotenv": "^18.0.8"
+  }
 }

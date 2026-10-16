@@ -16,6 +16,6 @@
   "rollingHourCap": "1000000",
   "balanceFloor": "100000",
   "probationSpendCap": "20000",
-  "requestTimeoutMs": 30000,
+  "requestTimeoutMs": 100000,
   "maxBodyBytes": 262144
 }

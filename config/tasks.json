@@ -1,0 +1,5 @@
+[
+  { "id": 1, "name": "Night-shift readiness brief (design story)", "text": "For the 3 most populous countries, find earthquakes of magnitude 4.5 or more from the last 7 days and write a short readiness brief for each.", "budget": "0.050", "maxConcurrency": 3 },
+  { "id": 2, "name": "Largest countries by area", "text": "For the 4 largest countries by area, find earthquakes of magnitude 5.0 or more from the last 14 days and write a short readiness brief for each.", "budget": "0.060", "maxConcurrency": 3 },
+  { "id": 3, "name": "Two countries, tight budget", "text": "For the 2 most populous countries, find earthquakes of magnitude 4.0 or more from the last 30 days and write a short readiness brief for each.", "budget": "0.030", "maxConcurrency": 3 }
+]

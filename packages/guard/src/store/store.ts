@@ -155,8 +155,9 @@ export class Store {
     return r && { requestId, state: r.state as string, nonce: r.nonce as string | null, validBefore: r.valid_before as number | null, amount: BigInt(r.amount as string), sellerId: r.seller_id as string };
   }
 
-  unfinishedIntents(): Array<{ requestId: string; taskId: string; sellerId: string; nonce: string | null; validBefore: number | null; amount: bigint; state: string }> {
-    const rows = this.db.prepare("SELECT * FROM intents WHERE state IN ('intent','signed','sent') ORDER BY created_at").all() as Array<Record<string, unknown>>;
+  /** Unfinished purchases of ONE session (the current one by default), so recovery never writes into the wrong chain. */
+  unfinishedIntents(sessionId: string = this.sessionId): Array<{ requestId: string; taskId: string; sellerId: string; nonce: string | null; validBefore: number | null; amount: bigint; state: string }> {
+    const rows = this.db.prepare("SELECT * FROM intents WHERE state IN ('intent','signed','sent') AND session_id=? ORDER BY created_at").all(sessionId) as Array<Record<string, unknown>>;
     return rows.map((r) => ({ requestId: r.request_id as string, taskId: r.task_id as string, sellerId: r.seller_id as string, nonce: r.nonce as string | null, validBefore: r.valid_before as number | null, amount: BigInt(r.amount as string), state: r.state as string }));
   }
 }

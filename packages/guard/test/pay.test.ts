@@ -144,6 +144,20 @@ describe('guard.pay (TC-2.3)', () => {
       expect(readFileSync(join(src, f), 'utf8'), f).not.toContain('BEACON_PRIVATE_KEY');
     }
   });
+  it('a transient 402 on the paid request gets one retry once the nonce is known unused (M-52)', async () => {
+    const t = await setup('flaky402', 50000n, { chain: { authorizationState: async () => false } });
+    const r = await pay(t.deps, t.req());
+    expect(r.status).toBe('paid');
+    expect(t.signer.calls).toHaveLength(2);
+    expect(t.s.hits.paid).toBe(2);
+    expect(t.b.totals('t1')).toMatchObject({ spent: 1000n, reserved: 0n });
+  });
+  it('no retry without chain confirmation: the 402 stays failed or held', async () => {
+    const t = await setup('flaky402');
+    const r = await pay(t.deps, t.req());
+    expect(r.status).toBe('pending');
+    expect(t.signer.calls).toHaveLength(1);
+  });
   it('one authorisation per request id (M-51)', async () => {
     const t = await setup('honest');
     await pay(t.deps, t.req(1));

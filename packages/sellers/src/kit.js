@@ -52,7 +52,7 @@ function createSellerApp(opts) {
   const resourceServer = new x402ResourceServer(facilitator).register(NETWORK, new ExactEvmScheme());
   const routes = {
     [routeKey]: {
-      accepts: [{ scheme: 'exact', price: `$${formatUsdc(BigInt(opts.priceUnits))}`, network: NETWORK, payTo: opts.payTo, maxTimeoutSeconds: 60 }],
+      accepts: [{ scheme: 'exact', price: `$${formatUsdc(BigInt(opts.priceUnits))}`, network: NETWORK, payTo: opts.payTo, maxTimeoutSeconds: opts.maxTimeoutSeconds || 120 }],
       description: opts.description || opts.name,
     },
   };
