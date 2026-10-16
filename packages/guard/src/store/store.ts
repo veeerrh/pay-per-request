@@ -69,6 +69,14 @@ export class Store {
   close(): void { this.db.close(); }
   setRuleSetHash(h: string): void { this.ruleSetHash = h; }
 
+  /** Records the chain block at which this session began (used by reconciliation). Set once. */
+  setSessionStartBlock(block: number, sessionId: string = this.sessionId): void {
+    this.db.prepare('UPDATE sessions SET start_block=? WHERE id=? AND start_block IS NULL').run(block, sessionId);
+  }
+  sessionStartBlock(sessionId: string = this.sessionId): number | null {
+    return ((this.db.prepare('SELECT start_block FROM sessions WHERE id=?').get(sessionId) as { start_block: number | null } | undefined)?.start_block) ?? null;
+  }
+
   /** New ledger chain with empty reputation basis. Old sessions stay stored and verifiable (M-66). */
   newSession(startBlock?: number): string {
     const id = `s_${randomUUID()}`;

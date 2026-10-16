@@ -38,6 +38,8 @@ export interface PayRequest {
   url: string;
   method?: 'GET' | 'POST';
   body?: string;
+  /** Extra display fields stored on the intent row (why the seller was selected, where the call came from). */
+  meta?: Record<string, unknown>;
 }
 export interface PayResult {
   requestId: string;
@@ -74,7 +76,7 @@ export async function pay(d: PayDeps, r: PayRequest): Promise<PayResult> {
     return { requestId: r.requestId, status: 'refused', verdict: 'STOP_TASK', ruleId: 'M-62', reason: 'spending is halted: the ledger hash chain failed verification', asked, paid: 0n, latencyMs: 0, txHash: null, signed: false };
   }
   const base = { seller: r.seller.name, sellerId: r.seller.id, category: r.seller.category, listed: r.listing.price.toString(), listingHash: r.listingHash, url: r.url };
-  d.store.appendEvent({ requestId: r.requestId, taskId: r.taskId, eventType: 'intent', payload: { ...base, asked: asked.toString(), paid: '0', status: 'pending', txHash: null, txConfirmed: false } });
+  d.store.appendEvent({ requestId: r.requestId, taskId: r.taskId, eventType: 'intent', payload: { ...(r.meta ?? {}), ...base, asked: asked.toString(), paid: '0', status: 'pending', txHash: null, txConfirmed: false } });
 
   const done = (status: LedgerStatus, verdict: PayResult['verdict'], ruleId: string, reason: string, extra: Partial<PayResult> & { schema?: unknown; rawOutput?: string } = {}): PayResult => {
     const res: PayResult = { requestId: r.requestId, status, verdict, ruleId, reason, asked, paid: 0n, latencyMs: Date.now() - t0, txHash: null, signed, ...extra };

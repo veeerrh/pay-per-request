@@ -10,6 +10,7 @@
     "ajv": "^8.20.0",
     "better-sqlite3": "^13.0.3",
     "canonicalize": "^5.1.0",
+    "ipaddr.js": "^1.9.1",
     "viem": "^2.57.7",
     "zod": "^4.6.7"
   }
