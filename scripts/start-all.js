@@ -46,4 +46,11 @@ const portFree = async (port) => !(await inUse(port, '127.0.0.1')) && !(await in
   const stopAll = () => { children.forEach((c) => { try { c.kill(); } catch { /* already gone */ } }); setTimeout(() => process.exit(0), 300); };
   process.on('SIGINT', stopAll); process.on('SIGTERM', stopAll);
   console.log('\nAll services up. Press Ctrl+C to stop.');
+  if (!only) {
+    // Register the seven listings (idempotent). In public mode the listings carry the public tunnel URL.
+    await new Promise((r) => setTimeout(r, 4000));
+    const base = PUBLIC ? process.env.PUBLIC_BASE_URL : 'http://localhost';
+    const seed = spawn(process.execPath, [path.join(ROOT, 'scripts', 'seed-registry.js'), 'http://localhost:4000', base], { cwd: ROOT, stdio: 'inherit' });
+    seed.on('exit', () => console.log(PUBLIC ? `\nPublic URL: ${process.env.PUBLIC_BASE_URL}   (dashboard at /, registry at /registry/services)` : '\nDashboard: http://localhost:4100   (everything through one door: http://localhost:8080)'));
+  }
 })();
