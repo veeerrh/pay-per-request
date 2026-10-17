@@ -350,3 +350,13 @@ ul.bullets.brief li { line-height: 1.45; }
 .xp-appr-list .countdown { color: var(--amber); font-weight: 650; }
 .xp-chain a { color: var(--accent-text); }
 @media (max-width: 640px) { .field-row-opt { grid-template-columns: 1fr; } }
+
+/* Fraud Lab: compact loss line and the (demo) refund queue */
+.lab-loss { margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; background: #fff; font-size: 0.85rem; display: flex; flex-direction: column; gap: 8px; }
+.lab-loss-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.lab-loss-k { color: var(--muted); }
+.lab-loss-v { font-size: 1.05rem; font-weight: 700; }
+.lab-loss.has .lab-loss-v { color: var(--amber); }
+.lab-refunds { display: flex; flex-direction: column; gap: 6px; border-top: 1px dashed var(--border); padding-top: 8px; }
+.lab-refunds-h { font-weight: 650; display: flex; align-items: center; gap: 6px; }
+.lab-refund-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

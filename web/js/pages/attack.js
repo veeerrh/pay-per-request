@@ -110,6 +110,18 @@ function stepHtml(s) {
     </div></li>`;
 }
 
+// Demo only: the refund queue records a request in the page. It sends nothing and moves no money.
+function lossHtml(sb) {
+  const lost = sb.junkPaidUsdc ?? '0.000';
+  const has = lost !== '0.000';
+  const items = steps().filter((s) => s.outcome === 'rejected' && toUnits(s.paidUsdc ?? '0') > 0n);
+  return `<div class="lab-loss${has ? ' has' : ''}">
+    <div class="lab-loss-row"><span class="lab-loss-k">Lost to junk</span><strong class="lab-loss-v">${esc(lost)} <small>USDC</small></strong></div>
+    <div class="lab-refunds"><span class="lab-refunds-h">${icon('clock', 'icon-sm')}Refund queue</span>
+      ${has ? (items.length ? items : [{ title: 'Paid, then rejected', paidUsdc: lost }]).map((s, i) => `<div class="lab-refund-item"><span>${esc(s.title || s.agentId)} · ${esc(s.paidUsdc)} USDC</span><button type="button" class="btn btn-secondary btn-sm" data-refund="${i}">Request refund</button></div>`).join('') : '<span class="muted">Nothing to refund.</span>'}
+    </div></div>`;
+}
+
 function finalHtml() {
   const r = task.result;
   if (!r || r.kind !== 'lab') return '';
@@ -119,7 +131,6 @@ function finalHtml() {
     ['Blocked before signing', sb.blockedBeforeSigning ?? 0, 'good'],
     ['Paid, then rejected', sb.paidThenRejected ?? 0, sb.paidThenRejected ? 'warn' : ''],
     ['Failed, not charged', sb.failedNotCharged ?? 0, 'good'],
-    ['Lost to junk (USDC)', sb.junkPaidUsdc ?? '0.000', sb.junkPaidUsdc && sb.junkPaidUsdc !== '0.000' ? 'warn' : ''],
     ['Total spent (USDC)', sb.spentUsdc ?? '0.000', ''],
     ...(exposure > 0n ? [['A buyer with no checks would have paid (USDC)', formatUsdc(exposure), 'bad']] : []),
   ];
@@ -127,6 +138,7 @@ function finalHtml() {
   return `<div class="card-head"><h2 id="lab-final-h">Beacon's report</h2></div>
     ${r.beaconSummary?.text ? `<div class="beacon-report">${bulletsHtml(r.beaconSummary.text)}<small class="muted">${r.beaconSummary.source === 'model' ? 'Written by the model from the recorded facts' : 'Rule-based report from the recorded facts'}</small></div>` : ''}
     <div class="lab-score">${tiles.map(([k, val, tone]) => `<div class="lab-tile ${tone}"><dd>${esc(val)}</dd><dt>${esc(k)}</dt></div>`).join('')}</div>
+    ${lossHtml(sb)}
     <div class="lab-proof"><h3>Proof</h3><ul class="bullets brief">
       <li>${v.chainOk ? `${icon('checkcircle', 'icon-sm')} The hash-chained ledger verifies.` : `${icon('xcircle', 'icon-sm')} The ledger failed verification.`}</li>
       <li>${matched ? icon('checkcircle', 'icon-sm') : icon('alert', 'icon-sm')} Reconciliation against Base Sepolia: <strong>${esc(rc.status || 'unverified')}</strong>${rc.ledgerTotal != null ? `. Ledger ${esc(formatUsdc(rc.ledgerTotal))} USDC, chain ${esc(formatUsdc(rc.chainTotal))} USDC` : ''}${rc.excludedReplayTransfers ? ` (${esc(rc.excludedReplayTransfers)} replay-test transfer${rc.excludedReplayTransfers > 1 ? 's' : ''} recorded as tests)` : ''}.</li>
@@ -238,6 +250,12 @@ function build(root) {
   api.config().then((c) => chat.setModel(c)).catch(() => undefined);
   $('#lab-run', root).addEventListener('click', () => run(root));
   $('#lab-again', root).addEventListener('click', () => reset(root));
+  root.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-refund]');
+    if (!b) return;
+    b.disabled = true;
+    b.outerHTML = `<span class="badge badge-green">${icon('checkcircle')}Refund initiated</span>`;
+  });
   root.addEventListener('change', (e) => {
     const c = e.target.closest('[data-suspect]');
     if (!c) return;

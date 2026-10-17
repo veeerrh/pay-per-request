@@ -80,6 +80,7 @@ function createTremor(opts = {}) {
 
   const app = boot('tremor', 4012, {
     method: 'GET', path: '/quakes', priceUnits: '2000', handlerTimeoutMs: 60000,
+    discovery: { input: { country: 'India', days: 7, minMag: 4.5 }, inputSchema: { properties: { country: { type: 'string' }, days: { type: 'integer', minimum: 1, maximum: 30 }, minMag: { type: 'number', minimum: 0, maximum: 9 } }, required: ['country'] }, output: { example: { country: 'India', window_days: 7, quakes: [] } } },
     description: 'Queries the public USGS earthquake catalog for a country region.',
     inputCheck: (req) => {
       const p = parseQuery(req.query);

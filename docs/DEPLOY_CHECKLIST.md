@@ -20,7 +20,8 @@ Status: **Ready** = done and verified here. **After deploy** = can only be prove
 | Spending policies with human approval above a threshold | Ready | `packages/buyer/test/approval.test.js` (9 tests); live approve run on the local stack |
 | Metered pricing for inference | Ready | `packages/sellers/test/metered.test.js` (4 tests), ledger rows show listed 0.010, asked 0.006 |
 | Agent chain (a seller hires sellers and pays them from what it earns) | After deploy and funding | `packages/buyer/test/chain.test.js`, `packages/sellers/test/relay.test.js`; the live paid chain run needs Relay's wallet funded (see `docs/DEPLOY_RENDER.md`) |
-| Bazaar, MCP/A2A, escrow, second network | Not built | listed in the README |
+| Bazaar discovery metadata | Ready (metadata only) | `packages/sellers/test/bazaar.test.js`; testnet facilitator has no catalog, so no public listing |
+| MCP/A2A, escrow, second network | Not built | listed in the README |
 
 ## Deliverables
 

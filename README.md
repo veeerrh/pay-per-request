@@ -80,7 +80,7 @@ Evidence from live runs (BaseScan links, reconcile output) is in `docs/evidence/
 | **Metered pricing** | Brief charges per country: 0.006 USDC for one, 0.010 for two. The listed price is a ceiling; the 402 asks for the metered amount; a payment signed for one country cannot buy a two-country brief. Metering is by input size (countries), not by model tokens, because the exact scheme needs the price before the work. | Market card "Per call, up to"; Ledger rows (listed 0.010, asked 0.006) |
 | **Agent chain** | **Relay** (inference) is paid once by the buyer, then buys the earthquake data from Tremor itself, with its own wallet, through the same payment guard (price, payee, token, network, schema, budget, hash-chained ledger). Opt-in per task ("Agent chain"). Relay is the only seller that holds a key; it needs a small working float (it is paid only after it delivers). | Explore, "Agent chain"; `GET /relay/payments` (Relay's wallet and what it paid) |
 
-Not built: paid MCP tools or A2A, Bazaar discovery, escrow or refunds, a second network.
+Bazaar: every paid route's 402 now carries x402 Bazaar discovery metadata (what it takes and returns). The public testnet facilitator has no catalog endpoint, so nothing is listed there; our own registry is the working discovery layer. Not built: paid MCP tools or A2A, escrow (the Fraud Lab shows a demo-only refund queue that sends nothing), a second network.
 
 ## Known limits (be honest)
 

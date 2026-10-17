@@ -74,6 +74,7 @@ function createRelay(opts = {}) {
   const app = boot('relay', 4014, {
     method: 'POST', path: '/relay', priceUnits: CEILING, priceFn: quoteUnits, handlerTimeoutMs: 45000,
     ...(opts.payTo ? { payTo: opts.payTo } : {}),
+    discovery: { bodyType: 'json', input: { countries: [{ name: 'India' }], days: 7, minMag: 4.5 }, inputSchema: { properties: { countries: { type: 'array', minItems: 1, maxItems: 2 } }, required: ['countries'] }, output: { example: { briefs: [] } } },
     description: 'Agent chain: you pay Relay once, Relay buys the earthquake data from Tremor with its own wallet and writes the readiness brief. Metered per country (0.006 for one, 0.010 for two).',
     inputCheck: (req) => {
       const b = req.body;

@@ -91,6 +91,7 @@ function createBrief(opts = {}) {
 
   return boot('brief', 4013, {
     method: 'POST', path: '/brief', priceUnits: '10000', priceFn: quoteUnits, handlerTimeoutMs: 40000,
+    discovery: { bodyType: 'json', input: { countries: [{ name: 'India' }] }, inputSchema: { properties: { countries: { type: 'array', minItems: 1, maxItems: 2 } }, required: ['countries'] }, output: { example: { briefs: [] } } },
     description: 'Writes a short readiness brief for up to 2 countries from data you already bought. The level comes from fixed rules; a model writes the wording.',
     inputCheck: (req) => {
       const list = req.body?.countries;

@@ -7,6 +7,7 @@ const express = require('express');
 const { paymentMiddleware, x402ResourceServer } = require('@x402/express');
 const { ExactEvmScheme } = require('@x402/evm/exact/server');
 const { HTTPFacilitatorClient } = require('@x402/core/server');
+const { declareDiscoveryExtension, bazaarResourceServerExtension } = require('@x402/extensions/bazaar');
 const { ClaimStore, formatUsdc, assertTestnet, createLogger } = require('@di06/guard');
 
 const NETWORK = 'eip155:84532';
@@ -24,7 +25,7 @@ function nonceFromHeader(h) {
 }
 
 /**
- * opts: { name, method, path, priceUnits (string, the listed ceiling), priceFn?(body)->units (metered quote), payTo, description, claimsDb, facilitatorUrl,
+ * opts: { discovery? ({ input, inputSchema, bodyType?, output: { example } }, Bazaar listing hints), name, method, path, priceUnits (string, the listed ceiling), priceFn?(body)->units (metered quote), payTo, description, claimsDb, facilitatorUrl,
  *         inputCheck(req)->string|null, handler(req)->object, outputCheck(output)->string|null, handlerTimeoutMs }
  */
 function createSellerApp(opts) {
@@ -53,6 +54,9 @@ function createSellerApp(opts) {
   // 2. Standard x402 v2 middleware: 402 challenge, verify, buffer, settle only on a successful handler.
   const facilitator = new HTTPFacilitatorClient({ url: opts.facilitatorUrl || 'https://x402.org/facilitator' });
   const resourceServer = new x402ResourceServer(facilitator).register(NETWORK, new ExactEvmScheme());
+  // Bazaar discovery: the 402 carries what this route takes and returns, so a facilitator that runs a catalog can list it.
+  // Pure metadata: it changes no price, no payee and no payment step, and the payment guard never reads it.
+  if (opts.discovery) resourceServer.registerExtension(bazaarResourceServerExtension);
   // Metered pricing: priceUnits is the listed CEILING. If priceFn is given it quotes from the request body (for example per country),
   // never above the ceiling and never zero; any problem falls back to the ceiling. The buyer's price rule already allows a lower ask.
   const ceiling = BigInt(opts.priceUnits);
@@ -67,6 +71,7 @@ function createSellerApp(opts) {
     [routeKey]: {
       accepts: [{ scheme: 'exact', price, network: NETWORK, payTo: opts.payTo, maxTimeoutSeconds: opts.maxTimeoutSeconds || 120 }],
       description: opts.description || opts.name,
+      ...(opts.discovery ? { extensions: declareDiscoveryExtension(opts.discovery) } : {}),
     },
   };
   app.use(paymentMiddleware(routes, resourceServer));

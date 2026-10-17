@@ -119,6 +119,7 @@ function createAtlas(opts = {}) {
   if (!opts.scrape && (opts.requiredBy ?? module) === require.main) scrape().catch(() => undefined); // warm the cache at start
   return boot('atlas', 4011, {
     method: 'GET', path: '/countries', priceUnits: '5000', handlerTimeoutMs: 50000,
+    discovery: { input: { top: 3, by: 'population' }, inputSchema: { properties: { top: { type: 'integer', minimum: 1, maximum: 10 }, by: { type: 'string', enum: ['population', 'area'] } } }, output: { example: { countries: [{ name: 'India', population: 1400000000 }] } } },
     description: 'Fetches the country list from a public scraping sandbox and returns the top N by population or area.',
     inputCheck: (req) => {
       const top = req.query.top === undefined ? 3 : Number(req.query.top);
