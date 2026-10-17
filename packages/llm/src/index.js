@@ -144,14 +144,16 @@ function createLlm(opts = {}) {
 
 /**
  * Reads the environment. This is the only place GEMINI_API_KEY is read.
- * agent (for example 'ATLAS'): honours ATLAS_LLM=off and prefers ATLAS_GEMINI_API_KEY, so each agent can have its own key and quota.
+ * agent (for example 'ATLAS'): honours ATLAS_LLM=off and uses ATLAS_GEMINI_API_KEY only (no fallback to another agent's key).
  * LLM_MODE=off turns every agent to its rule-based path.
  */
 function createLlmFromEnv(env = process.env, extra = {}, agent = '') {
   const A = String(agent).toUpperCase();
   if (env.LLM_MODE === 'off' || (A && env[`${A}_LLM`] === 'off')) return createLlm({ ...extra });
   const models = [env.GEMINI_MODEL || 'gemini-3.5-flash-lite', ...String(env.GEMINI_FALLBACK_MODELS ?? 'gemini-3.8-flash').split(',').map((s) => s.trim()).filter(Boolean)];
-  const apiKey = (A && env[`${A}_GEMINI_API_KEY`]) || env.GEMINI_API_KEY || '';
+  // Each agent uses only its own key and quota. Beacon alone may use the shared GEMINI_API_KEY, so a seller agent never spends Beacon's quota.
+  const own = A ? env[`${A}_GEMINI_API_KEY`] : '';
+  const apiKey = own || (!A || A === 'BEACON' ? env.GEMINI_API_KEY : '') || '';
   return createLlm({ apiKey, models: [...new Set(models)], ...extra });
 }
 

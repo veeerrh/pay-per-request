@@ -63,9 +63,15 @@ describe('llm client', () => {
     expect(llm.enabled).toBe(false);
     await expect(llm.generateText({ name: 't', system: 's', user: 'u' })).rejects.toBeInstanceOf(LlmUnavailable);
     expect(createLlmFromEnv({ GEMINI_API_KEY: 'x', BEACON_LLM: 'off' }, {}, 'BEACON').enabled).toBe(false);
-    expect(createLlmFromEnv({ GEMINI_API_KEY: 'x', BEACON_LLM: 'off' }, {}, 'ATLAS').enabled).toBe(true);
-    expect(createLlmFromEnv({ GEMINI_API_KEY: 'x', LLM_MODE: 'off' }, {}, 'ATLAS').enabled).toBe(false);
+    expect(createLlmFromEnv({ ATLAS_GEMINI_API_KEY: 'x', BEACON_LLM: 'off' }, {}, 'ATLAS').enabled).toBe(true);
+    expect(createLlmFromEnv({ ATLAS_GEMINI_API_KEY: 'x', LLM_MODE: 'off' }, {}, 'ATLAS').enabled).toBe(false);
     expect(createLlmFromEnv({ ATLAS_GEMINI_API_KEY: 'y' }, {}, 'ATLAS').enabled).toBe(true);
+    // a seller agent never borrows Beacon's key; Beacon may use the shared one
+    expect(createLlmFromEnv({ GEMINI_API_KEY: 'beacon-key' }, {}, 'ATLAS').enabled).toBe(false);
+    expect(createLlmFromEnv({ GEMINI_API_KEY: 'beacon-key' }, {}, 'TREMOR').enabled).toBe(false);
+    expect(createLlmFromEnv({ ATLAS_GEMINI_API_KEY: 'atlas-key' }, {}, 'BRIEF').enabled).toBe(false);
+    expect(createLlmFromEnv({ GEMINI_API_KEY: 'beacon-key' }, {}, 'BEACON').enabled).toBe(true);
+    expect(createLlmFromEnv({ ATLAS_GEMINI_API_KEY: 'atlas-key' }, {}, 'BEACON').enabled).toBe(false);
     const on = createLlmFromEnv({ GEMINI_API_KEY: 'x', GEMINI_MODEL: 'a', GEMINI_FALLBACK_MODELS: 'b, c' });
     expect(on.enabled).toBe(true);
     expect(on.models).toEqual(['a', 'b', 'c']);

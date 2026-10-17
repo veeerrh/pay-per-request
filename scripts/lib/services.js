@@ -6,7 +6,7 @@ const addresses = require(path.join(ROOT, 'config', 'addresses.json'));
 // Variables every child needs just to run on Windows or Linux. No secrets here.
 const BASE = ['PATH', 'Path', 'SystemRoot', 'SYSTEMROOT', 'TEMP', 'TMP', 'HOME', 'USERPROFILE', 'NODE_ENV', 'NETWORK', 'CHAIN_ID', 'USDC_ADDRESS', 'RPC_URL', 'FACILITATOR_URL', 'PUBLIC_BASE_URL', 'DEMO_MODE', 'ALLOW_PRIVATE_ENDPOINTS'];
 
-const MODEL_VARS = ['GEMINI_API_KEY', 'GEMINI_MODEL', 'GEMINI_FALLBACK_MODELS', 'LLM_MODE'];
+const MODEL_VARS = ['GEMINI_MODEL', 'GEMINI_FALLBACK_MODELS', 'LLM_MODE'];
 // Only the LLM-backed sellers receive model variables, each with its own optional key (for example ATLAS_GEMINI_API_KEY).
 const seller = (name, port, file, payToKey = name, model = false) => ({ name, port, script: `packages/sellers/src/${file}`, env: { PORT: String(port), PAY_TO: addresses.sellers[payToKey] }, allow: model ? [...BASE, ...MODEL_VARS, `${name.toUpperCase()}_GEMINI_API_KEY`, `${name.toUpperCase()}_LLM`] : BASE });
 
