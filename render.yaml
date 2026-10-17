@@ -1,0 +1,31 @@
+# Render blueprint: the registry and all sellers as one free web service. The buyer (Beacon) and every wallet key stay on the operator's machine.
+# Secrets are never stored here: Render asks for them in its dashboard (sync: false).
+services:
+  - type: web
+    name: agentmarket-public
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: node scripts/render-host.js
+    healthCheckPath: /gateway/health
+    autoDeploy: false
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NETWORK
+        value: eip155:84532
+      - key: CHAIN_ID
+        value: "84532"
+      - key: USDC_ADDRESS
+        value: "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+      - key: FACILITATOR_URL
+        value: https://x402.org/facilitator
+      - key: RPC_URL
+        value: https://sepolia.base.org
+      - key: ATLAS_GEMINI_API_KEY
+        sync: false
+      - key: TREMOR_GEMINI_API_KEY
+        sync: false
+      - key: BRIEF_GEMINI_API_KEY
+        sync: false

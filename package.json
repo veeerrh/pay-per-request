@@ -20,7 +20,8 @@
     "scan:bundle": "node scripts/bundle-scan.js",
     "start:public": "node scripts/start-all.js --public",
     "tunnel": "node scripts/tunnel.js",
-    "health": "node scripts/health.js"
+    "health": "node scripts/health.js",
+    "start:render": "node scripts/render-host.js"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
