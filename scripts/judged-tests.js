@@ -112,6 +112,21 @@ async function main() {
     return { pass, detail: out.map((o) => `c=${o.c}: ${o.status}, spent ${o.spent}`).join('; ') };
   });
 
+  // T-07 runs before T-04: the price and payTo liars stay in the open registry and would otherwise use up its fallback limit.
+  await test('T-07', 'Junk output: paid, rejected, bought elsewhere', async () => {
+    const junkAddr = randAddr();
+    startRef(4305, 'POST /brief', '0.003', junkAddr, ['--junk']);
+    await sleep(3000);
+    await register(listingBase({ name: 'RefJunk', category: 'inference', method: 'POST', endpoint: 'http://localhost:4305/brief', price: '3000', payTo: junkAddr, outputSchema: briefOut, description: 'returns 200 with schema-breaking output', probeBody: { countries: [{ name: 'India', quakes: [] }] } }));
+    await newSession();
+    const s = await runTask({ text: T1, budget: '60000', maxConcurrency: 3 });
+    const rows = await ledgerFor(s.id);
+    const junk = rows.find((e) => e.sellerId === 'refjunk');
+    const rep = (await api('GET', '/api/reputation')).body.find((r) => r.sellerId === 'refjunk');
+    const pass = !!junk && junk.status === 'rejected' && BigInt(junk.paid) > 0n && s.status === 'completed' && rep && rep.junk >= 1;
+    return { pass, detail: `RefJunk ${junk ? junk.status : 'not used'} paid ${junk?.paid}; task ${s.status}; reputation junk count ${rep?.junk}`, links: junk?.txHash ? [scanLink(junk.txHash)] : [] };
+  });
+
   await test('T-04', 'Price check: price lie and payTo lie', async () => {
     const a = randAddr(), b = randAddr(), decoy = randAddr();
     startRef(4301, 'GET /countries', '0.010', a);   // really asks 10,000 units
@@ -138,20 +153,6 @@ async function main() {
     return { pass: r.status === 200 && r.body.actual.status === 'failed' && r.body.paid === '0', detail: r.body.actual ? `${r.body.actual.verdict} ${r.body.actual.ruleId}, paid ${r.body.paid}` : JSON.stringify(r.body) };
   });
 
-  await test('T-07', 'Junk output: paid, rejected, bought elsewhere', async () => {
-    const junkAddr = randAddr();
-    startRef(4305, 'POST /brief', '0.003', junkAddr, ['--junk']);
-    await sleep(3000);
-    await register(listingBase({ name: 'RefJunk', category: 'inference', method: 'POST', endpoint: 'http://localhost:4305/brief', price: '3000', payTo: junkAddr, outputSchema: briefOut, description: 'returns 200 with schema-breaking output', probeBody: { countries: [{ name: 'India', quakes: [] }] } }));
-    await newSession();
-    const s = await runTask({ text: T1, budget: '60000', maxConcurrency: 3 });
-    const rows = await ledgerFor(s.id);
-    const junk = rows.find((e) => e.sellerId === 'refjunk');
-    const rep = (await api('GET', '/api/reputation')).body.find((r) => r.sellerId === 'refjunk');
-    const pass = !!junk && junk.status === 'rejected' && BigInt(junk.paid) > 0n && s.status === 'completed' && rep && rep.junk >= 1;
-    return { pass, detail: `RefJunk ${junk ? junk.status : 'not used'} paid ${junk?.paid}; task ${s.status}; reputation junk count ${rep?.junk}`, links: junk?.txHash ? [scanLink(junk.txHash)] : [] };
-  });
-
   await test('T-08', 'Standard clients in both directions', async () => {
     const a = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'reference-buyer.js'), 'http://localhost:4011/countries?top=1', 'SPARE_BUYER_PRIVATE_KEY'], { cwd: ROOT, encoding: 'utf8' });
     let aOut = a.stdout + a.stderr, wallet = 'spare wallet';
@@ -175,7 +176,7 @@ async function main() {
 
   children.forEach((c) => { try { c.kill(); } catch { /* gone */ } });
   const md = [`# Judged-test rehearsal\n`, `Run: ${new Date().toISOString()} against ${BEACON}. Testnet only (Base Sepolia). Beacon ${beaconAddr}.\n`, '| Test | Result | Detail | Explorer |', '| --- | --- | --- | --- |']
-    .concat(results.map((r) => `| ${r.id} ${r.name} | ${r.pass ? 'PASS' : 'FAIL'} | ${String(r.detail).replace(/\|/g, '/')} | ${r.links.map((l, i) => `[tx${i + 1}](${l})`).join(' ')} |`)).join('\n') + '\n';
+    .concat(results.slice().sort((x, y) => x.id.localeCompare(y.id)).map((r) => `| ${r.id} ${r.name} | ${r.pass ? 'PASS' : 'FAIL'} | ${String(r.detail).replace(/\|/g, '/')} | ${r.links.map((l, i) => `[tx${i + 1}](${l})`).join(' ')} |`)).join('\n') + '\n';
   if (!ONLY.length) { fs.mkdirSync(path.join(ROOT, 'docs', 'evidence'), { recursive: true }); fs.writeFileSync(path.join(ROOT, 'docs', 'evidence', 'JUDGED_TESTS.md'), md); }
   console.log('\n' + md);
   process.exitCode = results.every((r) => r.pass) ? 0 : 1;

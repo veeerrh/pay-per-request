@@ -248,7 +248,7 @@ async function main() {
   if (!operatorToken) {
     operatorToken = crypto.randomBytes(24).toString('hex');
     fs.appendFileSync(path.join(ROOT, '.env'), `\nOPERATOR_TOKEN=${operatorToken}\n`);
-    console.log(`OPERATOR_TOKEN created and saved to .env (needed for "New session"): ${operatorToken}`);
+    console.log(`OPERATOR_TOKEN created and saved to .env (needed for "New session"); read it from .env`);
   }
 
   const cfg = g.loadConfig(path.join(ROOT, 'config', 'rules.config.json'));
