@@ -71,7 +71,7 @@ function createServer(deps) {
   app.get('/api/config', (_req, res) => {
     let hygiene = null;
     try { hygiene = JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'hygiene.json'), 'utf8')); } catch { /* not generated yet */ }
-    res.json({ rules: cfg, ruleSetHash: ruleSetHash(), network: g.NETWORK, usdc: g.USDC_ADDRESS, hygiene, buyer: BUYER_NAME, attackPanel: !!deps.extend });
+    res.json({ rules: cfg, ruleSetHash: ruleSetHash(), network: g.NETWORK, usdc: g.USDC_ADDRESS, hygiene, buyer: BUYER_NAME, attackPanel: !!deps.extend, llm: { enabled: beacon.usesModel, usage: beacon.usage() } });
   });
 
   const reputation = () => g.computeReputation(store.listEntries(), cfg, Date.now());
@@ -311,7 +311,7 @@ async function main() {
   let replaySigner; try { replaySigner = g.createSigner('REPLAY_PRIVATE_KEY'); } catch { /* attack replay5 reports the wallet is not configured */ }
   const extend = process.env.ENABLE_ATTACK_PANEL === 'true' ? (() => { try { return require('./attacks').install; } catch { return undefined; } })() : undefined;
 
-  const llm = createLlmFromEnv(process.env, {}, 'BEACON');
+  const llm = createLlmFromEnv(process.env, { maxWaitMs: 8000, usageFile: path.join(ROOT, 'data', 'llm-usage-beacon.json') }, 'BEACON');
   const beacon = createBeacon({ llm, log });
   log('info', llm.enabled ? `Beacon agent uses a model: ${llm.models.join(' then ')}` : 'Beacon agent runs rule-based (no model key set or BEACON_LLM=off)');
   const app = createServer({ store, budget, signer, chain, cfg, listings, services, beacon, registryUrl, operatorToken, log, allowPrivate: process.env.ALLOW_PRIVATE_ENDPOINTS === 'true', maxTaskBudget: process.env.MAX_TASK_BUDGET, extend, replaySigner });

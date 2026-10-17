@@ -113,7 +113,7 @@ Write the notes now.`,
 }
 
 function createAtlas(opts = {}) {
-  const llm = opts.llm || (opts.requiredBy === null ? createLlm({}) : createLlmFromEnv(process.env, { timeoutMs: 12000 }, 'ATLAS'));
+  const llm = opts.llm || (opts.requiredBy === null ? createLlm({}) : createLlmFromEnv(process.env, { timeoutMs: 12000, maxWaitMs: 3000, usageFile: path.join(__dirname, '..', '..', '..', 'data', 'llm-usage-atlas.json') }, 'ATLAS'));
   const annotate = createAnnotator({ llm, log: (m) => console.warn(m) });
   const scrape = opts.scrape || makeScraper(fetch, () => Date.now(), { cacheFile: path.join(__dirname, '..', '..', '..', 'data', 'atlas-cache.json') });
   if (!opts.scrape && (opts.requiredBy ?? module) === require.main) scrape().catch(() => undefined); // warm the cache at start

@@ -1,6 +1,9 @@
 // Shared helpers for the model-backed seller agents (Atlas, Tremor, Brief).
 // Rule: a seller's model only adds words. Code owns the data and the decision, and a model failure never blocks a sale.
+const path = require('path');
 const { createLlm, createLlmFromEnv } = require('@di06/llm');
+
+const DATA = path.join(__dirname, '..', '..', '..', 'data');
 
 /**
  * The model client for one agent. Reads only that agent's own key (ATLAS_GEMINI_API_KEY and so on).
@@ -9,7 +12,8 @@ const { createLlm, createLlmFromEnv } = require('@di06/llm');
 function agentLlm(agent, opts = {}) {
   if (opts.llm) return opts.llm;
   if (opts.requiredBy === null) return createLlm({});
-  return createLlmFromEnv(process.env, { timeoutMs: 12000 }, agent);
+  // A paid request must not wait for the minute window: after 3 s without budget the agent answers without the model.
+  return createLlmFromEnv(process.env, { timeoutMs: 12000, maxWaitMs: 3000, usageFile: path.join(DATA, `llm-usage-${String(agent).toLowerCase()}.json`) }, agent);
 }
 
 /**

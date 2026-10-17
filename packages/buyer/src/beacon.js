@@ -173,7 +173,7 @@ function createBeacon({ llm, log } = {}) {
     }
   }
 
-  return { plan, choose, summarize, answer, templatedSummary, ruleAnswer, usesModel: useModel };
+  return { plan, choose, summarize, answer, templatedSummary, ruleAnswer, usesModel: useModel, usage: () => (useModel && llm.usage ? llm.usage() : null) };
 }
 
 /**
