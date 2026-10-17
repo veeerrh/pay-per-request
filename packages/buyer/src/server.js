@@ -68,7 +68,7 @@ function createServer(deps) {
   app.get('/api/config', (_req, res) => {
     let hygiene = null;
     try { hygiene = JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'hygiene.json'), 'utf8')); } catch { /* not generated yet */ }
-    res.json({ rules: cfg, ruleSetHash: ruleSetHash(), network: g.NETWORK, usdc: g.USDC_ADDRESS, hygiene, buyer: BUYER_NAME });
+    res.json({ rules: cfg, ruleSetHash: ruleSetHash(), network: g.NETWORK, usdc: g.USDC_ADDRESS, hygiene, buyer: BUYER_NAME, attackPanel: !!deps.extend });
   });
 
   const reputation = () => g.computeReputation(store.listEntries(), cfg, Date.now());
@@ -202,7 +202,7 @@ function createServer(deps) {
   });
 
   // ---------- extra routes (attack panel in 8.1) ----------
-  if (deps.extend) deps.extend(app, { state, store, budget, signer, chain, cfg, emit, snapshot, listings: deps.listings, checkChain });
+  if (deps.extend) deps.extend(app, { state, store, budget, signer, chain, cfg, emit, snapshot, listings: deps.listings, checkChain, replaySigner: deps.replaySigner, attackLimit: deps.attackLimit });
 
   // ---------- static dashboard ----------
   const webDir = deps.webDir ?? path.join(ROOT, 'web');
@@ -262,9 +262,10 @@ async function main() {
   const registryUrl = (process.env.REGISTRY_URL || 'http://localhost:4000').replace(/\/$/, '');
   const listings = registryListings(registryUrl);
   const services = async (q) => { const u = new URL(`${registryUrl}/services`); for (const k of ['category', 'maxPrice', 'q']) if (q && q[k]) u.searchParams.set(k, String(q[k])); const r = await fetch(u, { signal: AbortSignal.timeout(8000) }); if (!r.ok) throw new Error(`registry answered ${r.status}`); return r.json(); };
+  let replaySigner; try { replaySigner = g.createSigner('REPLAY_PRIVATE_KEY'); } catch { /* attack replay5 reports the wallet is not configured */ }
   const extend = process.env.ENABLE_ATTACK_PANEL === 'true' ? (() => { try { return require('./attacks').install; } catch { return undefined; } })() : undefined;
 
-  const app = createServer({ store, budget, signer, chain, cfg, listings, services, registryUrl, operatorToken, log, allowPrivate: process.env.ALLOW_PRIVATE_ENDPOINTS === 'true', maxTaskBudget: process.env.MAX_TASK_BUDGET, extend });
+  const app = createServer({ store, budget, signer, chain, cfg, listings, services, registryUrl, operatorToken, log, allowPrivate: process.env.ALLOW_PRIVATE_ENDPOINTS === 'true', maxTaskBudget: process.env.MAX_TASK_BUDGET, extend, replaySigner });
   if (start.spendingHalted) { app.state.halted = true; app.state.haltReason = start.reason; }
   const port = Number(process.env.PORT || 4100);
   app.listen(port, () => console.log(`Beacon on :${port} (buyer ${signer.address}, session ${store.sessionId})`));

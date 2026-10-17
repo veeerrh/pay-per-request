@@ -9,3 +9,4 @@ logs/
 packages/*/dist/
 .claude/
 evidence/private/
+config/hygiene.json
