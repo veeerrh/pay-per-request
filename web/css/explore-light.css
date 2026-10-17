@@ -236,8 +236,9 @@ ul.bullets.brief li { line-height: 1.45; }
 .sidebar .nav a[aria-current="page"] { color: var(--accent-text); border-color: rgba(106, 90, 249, 0.35); }
 .sidebar .btn-secondary { background: #fff; color: var(--text); border-color: var(--border-strong); }
 .sidebar .btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
-.sidebar .wallet-panel { background: var(--surface-2); }
+.sidebar .wallet-panel { background: #dbeafe; border-color: #93c5fd; }
 .sidebar .wp-addr code { background: #fff; color: var(--text); }
+.sidebar .wallet-panel .wp-head h2 { background: #bfdbfe; color: #1e3a8a; padding: 2px 8px; border-radius: 6px; }
 .sidebar .badge-net { background: var(--accent-soft); color: var(--accent-text); }
 
 /* ------- Fraud Lab ------- */
