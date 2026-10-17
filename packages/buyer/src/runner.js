@@ -23,6 +23,15 @@ async function runTask(ctx, req, emit = () => {}) {
   const preferred = new Map(); // category -> seller id chosen by Beacon; only ever one of the eligible candidates
   const choices = [];
   const agentNotes = [];
+  const warned = new Set();
+  /** One chat line per reason: the user should know when Beacon is using its rule-based path instead of the model. */
+  const noteFallback = (reason) => {
+    if (!reason || warned.has(reason)) return;
+    warned.add(reason);
+    say(reason === 'budget'
+      ? "Gemini's free request budget is full for the moment, so I am using my rule-based logic for some steps. Payments and checks are unchanged."
+      : 'The model is not responding right now, so I am using my rule-based logic for some steps. Payments and checks are unchanged.', 'notice');
+  };
   /** What a hired agent added to its answer (Atlas notes, Tremor digest, Brief actions). Only from outputs that passed validation. */
   const agentNote = (agent, category, text) => {
     const t = String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, 300);
@@ -49,6 +58,7 @@ async function runTask(ctx, req, emit = () => {}) {
   try {
     const planned = await beacon.plan(req.text);
     params = planned.params;
+    noteFallback(planned.fallback);
     emit({ type: 'plan', params, source: planned.source });
     say(`I read your task as: ${String(planned.understanding).replace(/[.\s]+$/, '')}. Budget is a hard cap of ${fmt(req.budget)} USDC. I will find the countries, fetch earthquake data for each, then have a readiness brief written.`, 'plan');
   } catch (e) { if (e instanceof PlanError) return blocked(e.message); throw e; }
@@ -119,6 +129,7 @@ async function runTask(ctx, req, emit = () => {}) {
     if (!candidates.length) return;
     const label = plan.steps.find((s) => s.category === category)?.label ?? category;
     const pick = await beacon.choose({ category, label, candidates, taskText: req.text });
+    noteFallback(pick.fallback);
     const picked = candidates.find((c) => c.id === pick.id) ?? candidates[0];
     preferred.set(category, picked.id);
     choices.push({ category, id: picked.id, name: picked.name, reason: pick.reason, source: pick.source });
@@ -217,6 +228,7 @@ async function runTask(ctx, req, emit = () => {}) {
     text: req.text, status, stage: 'combine', notice, budget: String(totals.budget), spent: String(totals.spent), paidCalls, params, choices, ledger: ledgerRows, result, agentNotes,
   }));
   result.beaconSummary = { text: summary.text, source: summary.source };
+  noteFallback(summary.fallback);
   say(summary.text, 'summary');
   emit({ type: 'done', status, notice, result, at: new Date().toISOString() }); // last event: the stream ends here
   return { status, notice, result, totals, attempts, entries, params };
@@ -230,11 +242,14 @@ async function runTask(ctx, req, emit = () => {}) {
  */
 async function runDirect(ctx, req, emit = () => {}) {
   const { store, budget, signer, cfg, chain } = ctx;
+  const beacon = ctx.beacon || createBeacon({ log: ctx.log });
   const act = (kind, text) => emit({ type: 'activity', kind, text, at: new Date().toISOString() });
-  const blocked = (notice) => { emit({ type: 'blocked', notice, at: new Date().toISOString() }); act('blocked', notice); return { status: 'blocked', notice }; };
+  const say = (text, kind = 'info') => emit({ type: 'chat', role: 'beacon', kind, text, at: new Date().toISOString() });
+  const blocked = (notice) => { emit({ type: 'blocked', notice, at: new Date().toISOString() }); act('blocked', notice); say(`I stopped before buying anything: ${notice}`, 'blocked'); return { status: 'blocked', notice }; };
   const d = req.directUrl;
   emit({ type: 'stage', stage: 'plan' });
   act('start', `Direct purchase started with a ${fmt(req.budget)} USDC hard cap.`);
+  say(`Direct purchase: you gave me one URL and the price you expect, so I am not choosing an agent. I still check the price, payee, token and network before signing anything. Budget is a hard cap of ${fmt(req.budget)} USDC.`, 'plan');
   try { await g.assertPublicEndpoint(d.url, { allowPrivate: !!ctx.allowPrivate }); } catch (e) { return blocked(`That URL is not allowed: ${e.message}.`); }
   if (d.expectedPrice > req.budget) return blocked(`Expected price ${fmt(d.expectedPrice)} USDC is above the budget ${fmt(req.budget)} USDC. Nothing was bought.`);
   let balance;
@@ -265,10 +280,12 @@ async function runDirect(ctx, req, emit = () => {}) {
   });
   const entry = store.listEntries().find((e) => e.id === requestId);
   if (entry) emit({ type: 'ledger', entry: { ...entry, buyer: 'Scout', source: 'direct' } });
-  if (result.status === 'refused') act('refused', `Refused: ${result.reason}`);
-  else if (result.status === 'failed') act('failed', `Failed, not charged: ${result.reason}`);
-  else if (result.status === 'pending') act('info', `Pending: ${result.reason}`);
-  else act(result.status === 'paid' ? 'validated' : 'rejected', result.status === 'paid' ? 'Paid and received a response.' : `Paid, output rejected: ${result.reason}`);
+  const host = new URL(d.url).host;
+  if (result.status === 'refused') { act('refused', `Refused: ${result.reason}`); say(`I refused ${host} before signing anything, so nothing was paid: ${result.reason}`, 'refused'); }
+  else if (result.status === 'failed') { act('failed', `Failed, not charged: ${result.reason}`); say(`${host} did not deliver and I was not charged: ${result.reason}`, 'failed'); }
+  else if (result.status === 'pending') { act('info', `Pending: ${result.reason}`); say(`The payment to ${host} is still settling: ${result.reason}`, 'pending'); }
+  else if (result.status === 'paid') { act('validated', 'Paid and received a response.'); say(`Paid ${fmt(result.paid)} USDC to ${host} and received a response.`, 'paid'); }
+  else { act('rejected', `Paid, output rejected: ${result.reason}`); say(`Paid ${fmt(result.paid)} USDC to ${host}, but the answer failed my checks (${result.reason}).`, 'rejected'); }
   const t = budget.totals(req.taskId);
   emit({ type: 'metrics', budget: String(t.budget), reserved: String(t.reserved), spent: String(t.spent), remaining: String(t.remaining), paidCalls: result.paid > 0n ? 1 : 0, services: result.status === 'paid' ? ['direct'] : [] });
   for (const s of ['execute', 'validate', 'combine']) emit({ type: 'stage', stage: s });
@@ -284,6 +301,12 @@ async function runDirect(ctx, req, emit = () => {}) {
   const status = ok ? 'completed' : 'stopped';
   if (ok) emit({ type: 'output', call: entry?.callNo ?? 1, agent: 'direct', status: 'accepted', output: result.output });
   act(ok ? 'completed' : 'stopped', ok ? `Done. Spent ${fmt(t.spent)} of ${fmt(t.budget)} USDC.` : result.reason);
+  const summary = await beacon.summarize(factsFromTask({
+    text: `Direct purchase from ${d.url}`, status, stage: 'combine', notice: ok ? '' : result.reason, budget: String(t.budget), spent: String(t.spent), paidCalls: result.paid > 0n ? 1 : 0,
+    choices: [], ledger: entry ? [{ ...entry, seller: host }] : [], result: out, agentNotes: [],
+  }));
+  out.beaconSummary = { text: summary.text, source: summary.source };
+  say(summary.text, 'summary');
   emit({ type: 'done', status, notice: ok ? '' : result.reason, result: out, at: new Date().toISOString() });
   return { status, notice: ok ? '' : result.reason, result: out, totals: t };
 }

@@ -6,7 +6,7 @@
 //  - choose: the pick must be one of the candidates the safety rules already approved, else the top ranked one is used
 //  - summarize and answer: built from recorded facts; a number in the prose that is not in the facts replaces the prose
 // This module must not import the signer or the guard (M-37). Without a model every job has a rule-based path.
-const { z, quote, numbersGrounded, LlmUnavailable, LlmInvalid } = require('@di06/llm');
+const { z, quote, numbersGrounded, LlmUnavailable, LlmInvalid, LlmBudget } = require('@di06/llm');
 const { parseTask, validateParams, PlanError } = require('./planner');
 const { fmt } = require('./reporter');
 
@@ -47,6 +47,9 @@ Your job now: answer the user's question about the current task using only the f
 If the user asks you to buy, pay or change something, explain that a new purchase starts only when they submit a task. Keep answers under 120 words. Plain text only: no markdown or asterisks.`;
 
 /** Typed, safe facts about a candidate. Seller-written text (descriptions, labels) is deliberately absent (M-12). */
+/** Why a model step fell back to rules: our own request budget is full, or the model could not answer. */
+const why = (e) => (e instanceof LlmBudget ? 'budget' : 'unavailable');
+
 const candidateFacts = (c) => ({
   id: c.id, name: c.name, rank: c.rank, price: fmt(c.price), proven: !!c.rep?.proven,
   score: Number((c.rep?.score ?? 0.5).toFixed(2)), attempts: c.rep?.attempts ?? 0, medianLatencyMs: c.rep?.medianLatencyMs ?? null,
@@ -74,7 +77,7 @@ function createBeacon({ llm, log } = {}) {
       if (e instanceof PlanError) throw e;
       if (!(e instanceof LlmUnavailable || e instanceof LlmInvalid)) throw e;
       warn('plan: model unavailable, using rules', e);
-      return fallback();
+      return { ...fallback(), fallback: why(e) };
     }
   }
 
@@ -100,7 +103,7 @@ function createBeacon({ llm, log } = {}) {
     } catch (e) {
       if (!(e instanceof LlmUnavailable || e instanceof LlmInvalid)) throw e;
       warn('choose: model unavailable, using top ranked', e);
-      return { id: top.id, reason: templated(top), source: 'rules' };
+      return { id: top.id, reason: templated(top), source: 'rules', fallback: why(e) };
     }
   }
 
@@ -130,7 +133,7 @@ function createBeacon({ llm, log } = {}) {
     } catch (e) {
       if (!(e instanceof LlmUnavailable || e instanceof LlmInvalid)) throw e;
       warn('summary: model unavailable, using the template', e);
-      return fallback;
+      return { ...fallback, fallback: why(e) };
     }
   }
 
@@ -139,6 +142,9 @@ function createBeacon({ llm, log } = {}) {
     const q = question.toLowerCase();
     if (!f) return 'There is no task yet. Submit one and I will explain every step as it happens.';
     const money = `${fmt(f.spent)} of ${fmt(f.budget)} USDC`;
+    if (/\b(previous|earlier|before|last task|first task|other task)\b/.test(q)) {
+      return f.earlierTasks?.length ? f.earlierTasks.map((x) => `${x.id}: "${x.task}" ended as ${x.status}, spent ${x.spentUsdc} of ${x.budgetUsdc} USDC.`).join('\n') : 'There is no earlier task in this session.';
+    }
     if (/\b(why|reason|chose|choose|chosen|select|picked?|hire[d]?)\b/.test(q)) {
       return f.choices.length ? f.choices.map((c) => `${c.seller} for ${c.category}: ${c.reason}`).join('\n') : 'I have not chosen any agent yet.';
     }
@@ -174,7 +180,7 @@ function createBeacon({ llm, log } = {}) {
     } catch (e) {
       if (!(e instanceof LlmUnavailable || e instanceof LlmInvalid)) throw e;
       warn('answer: model unavailable, using rules', e);
-      return fallback;
+      return { ...fallback, fallback: why(e) };
     }
   }
 
@@ -185,10 +191,11 @@ function createBeacon({ llm, log } = {}) {
  * Facts about a task for the summary and the chat, from what the task recorded (ledger rows, choices, result).
  * Amounts appear both as units and as USDC text so a model can copy them instead of converting.
  */
-function factsFromTask(t) {
+function factsFromTask(t, earlier = []) {
   if (!t) return null;
   const clip = (s, n) => String(s ?? '').slice(0, n);
   return {
+    earlierTasks: earlier.slice(-3).map((x) => ({ id: x.id, task: clip(x.text, 120), status: x.status, budgetUsdc: fmt(x.budget), spentUsdc: fmt(x.spent) })),
     task: clip(t.text, 300), status: t.status, stage: t.stage || null, notice: clip(t.notice, 300),
     budget: String(t.budget), budgetUsdc: fmt(t.budget), spent: String(t.spent), spentUsdc: fmt(t.spent),
     remainingUsdc: fmt(BigInt(t.budget) - BigInt(t.spent)), paidCalls: t.paidCalls,

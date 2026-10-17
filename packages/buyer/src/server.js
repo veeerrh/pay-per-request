@@ -65,6 +65,29 @@ function createServer(deps) {
   }
   checkChain();
 
+  // ---------- tasks and chat survive a restart ----------
+  // Only the Beacon-side view is saved (task, choices, notes, ledger rows, chat). The ledger itself is already durable.
+  store.db.exec('CREATE TABLE IF NOT EXISTS beacon_tasks(id TEXT PRIMARY KEY, json TEXT NOT NULL, updated_at TEXT NOT NULL)');
+  const saveTask = (t) => {
+    try {
+      const { events, subs, ...rest } = t;
+      store.db.prepare('INSERT INTO beacon_tasks(id, json, updated_at) VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET json=excluded.json, updated_at=excluded.updated_at')
+        .run(t.id, JSON.stringify(ser(rest)), new Date().toISOString());
+    } catch (e) { deps.log?.('warn', 'could not save task', { error: e.message }); }
+  };
+  (function restoreTasks() {
+    try {
+      store.db.prepare('DELETE FROM beacon_tasks WHERE id NOT IN (SELECT id FROM beacon_tasks ORDER BY updated_at DESC LIMIT 60)').run();
+      const rows = store.db.prepare('SELECT json FROM beacon_tasks ORDER BY updated_at DESC LIMIT 30').all().reverse();
+      for (const r of rows) {
+        const t = { ...JSON.parse(r.json), events: [], subs: new Set() };
+        if (t.status === 'running') { t.status = 'stopped'; t.notice = 'Beacon restarted while this task was running. Anything already signed is tracked in the ledger.'; t.endedAt = new Date().toISOString(); }
+        state.tasks.set(t.id, t);
+        state.seq = Math.max(state.seq, Number(String(t.id).match(/^t(\d+)_/)?.[1] || 0));
+      }
+    } catch (e) { deps.log?.('warn', 'could not restore tasks', { error: e.message }); }
+  })();
+
   // ---------- read-only endpoints ----------
   app.get('/api/health', (_req, res) => res.json({ ok: true, sessionId: store.sessionId, spendingHalted: state.halted }));
   app.get('/api/examples', (_req, res) => res.json(JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'tasks.json'), 'utf8'))));
@@ -140,6 +163,7 @@ function createServer(deps) {
     t.events.push(e);
     if (t.events.length > 500) t.events.shift();
     apply(t, e);
+    if (e.type === 'chat' || e.type === 'done' || e.type === 'blocked') saveTask(t);
     for (const sub of t.subs) sub.write(`id: ${e.id}\ndata: ${JSON.stringify(ser(e))}\n\n`);
     if (t.status !== 'running') { for (const sub of t.subs) sub.end(); t.subs.clear(); }
   }
@@ -168,6 +192,7 @@ function createServer(deps) {
       lastEventId: 0, params: null, choices: [], ledger: [], chat: [], agentNotes: [],
     };
     state.tasks.set(id, t);
+    saveTask(t);
     res.status(202).json({ taskId: id });
     const ctx = { store, budget, signer, cfg, chain, log: deps.log, listings: deps.listings, allowPrivate: deps.allowPrivate, beacon };
     const em = (ev) => emit(t, ev);
@@ -196,7 +221,8 @@ function createServer(deps) {
 
   // ---------- Beacon chat: the live feed of what it did and why, plus questions answered from recorded facts ----------
   const chatLimiter = rateLimit({ windowMs: 60_000, limit: deps.chatLimit ?? 12, standardHeaders: 'draft-7', legacyHeaders: false, message: { error: 'rate_limited', detail: 'Too many chat messages, wait a minute.' } });
-  const latestTask = () => [...state.tasks.values()].at(-1);
+  // With no taskId the chat follows the task that is running now, otherwise the most recent one.
+  const latestTask = () => { const all = [...state.tasks.values()]; return [...all].reverse().find((x) => x.status === 'running') || all.at(-1); };
   app.get('/api/tasks/:id/chat', (req, res) => {
     const t = state.tasks.get(req.params.id);
     return t ? res.json(ser({ messages: t.chat, status: t.status, usesModel: beacon.usesModel })) : res.status(404).json({ error: 'not_found' });
@@ -210,9 +236,11 @@ function createServer(deps) {
     if (p.data.taskId && !t) return res.status(404).json({ error: 'not_found' });
     const history = t ? t.chat.slice(-8).map((m) => ({ role: m.role, text: m.text })) : [];
     if (t) emit(t, { type: 'chat', role: 'user', kind: 'question', text: p.data.message, at: new Date().toISOString() });
-    const a = await beacon.answer({ question: p.data.message, facts: factsFromTask(t), history });
-    if (t) emit(t, { type: 'chat', role: 'beacon', kind: 'answer', text: a.text, at: new Date().toISOString() });
-    res.json({ reply: a.text, source: a.source, taskId: t?.id ?? null });
+    const earlier = t ? [...state.tasks.values()].filter((x) => x !== t && x.startedAt <= t.startedAt) : [];
+    const a = await beacon.answer({ question: p.data.message, facts: factsFromTask(t, earlier), history });
+    const text = a.fallback === 'budget' ? `${a.text}\n(Gemini's free request budget is full for the moment, so this answer is rule-based.)` : a.text;
+    if (t) emit(t, { type: 'chat', role: 'beacon', kind: 'answer', text, at: new Date().toISOString() });
+    res.json({ reply: text, source: a.source, taskId: t?.id ?? null });
   });
 
   app.get('/api/tasks/:id/events', (req, res) => {

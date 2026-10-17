@@ -22,8 +22,8 @@ Short version: the agents now use Gemini, Beacon has a chat, the fraud demo is s
 ### Live Market
 1. **Beacon chat panel** (new, main element).
    - On load and while a task runs, show the feed: `GET /api/tasks/:id/chat` returns `messages[]` with `role` (`beacon` or `user`), `kind`, `text`, `at`.
-   - Message kinds to style differently: `plan`, `choice` (why this agent was hired), `select`, `agent` (what a hired agent added in its own words, text starts with "Atlas adds: …"), `paid`, `rejected`, `refused`, `failed`, `pending`, `blocked`, `summary`, `question`, `answer`.
-   - Input box: `POST /api/chat` with `{ message, taskId? }`, up to 500 characters. Reply is `{ reply, source }`, where `source` is `model` or `rules`. The chat can explain but never buys anything.
+   - Message kinds to style differently: `plan`, `choice` (why this agent was hired), `select`, `agent` (what a hired agent added in its own words, text starts with "Atlas adds: …"), `paid`, `rejected`, `refused`, `failed`, `pending`, `blocked`, `notice` (Beacon says it is using its rule-based path because Gemini's free budget is full or the model is down; show it as a small info banner, once per task), `summary`, `question`, `answer`.
+   - Input box: `POST /api/chat` with `{ message, taskId? }`, up to 500 characters. Without `taskId` the chat follows the running task, else the newest one. Always pass `taskId` when the user has selected an older task. Beacon can also answer questions about the 3 tasks before it ("how did the previous task go?"). Reply is `{ reply, source }`, where `source` is `model` or `rules`. The chat can explain but never buys anything.
    - Suggested chips: "Why did you pick these agents?", "What did it cost?", "What went wrong?", "Show the results".
 2. **Task box**: text, budget, concurrency (1/3/5). `POST /api/tasks` (budget is a digit string of units).
 3. **Agent cards** for Atlas, Tremor, Brief, each showing: price, reputation score, status, and the **last output** with its model-written part:
@@ -34,8 +34,9 @@ Short version: the agents now use Gemini, Beacon has a chat, the fraud demo is s
 4. **"What each agent added"**: `result.agentNotes[]` (`agent`, `category`, `text`) and live `note` events. Show each note under its agent card (Atlas: country notes and summary; Tremor: one digest per country; Brief: actions per country). The same lines appear in the chat as `agent` messages.
 5. **"Why this agent" line** on each hired agent: from the `choice` event or `result.choices[]` (`category`, `seller`, `reason`, `source`).
 6. **Result card**: use `result.beaconSummary.text` as the headline report, then `result.evidence[]`, then the cost breakdown. Keep the budget meter (spent + reserved never above the cap).
-7. **Model status badge** in the header: from `GET /api/config` `llm.enabled`. Optional tooltip with `llm.usage` per model (`day/rpd`, `minute/rpm`).
-8. **Keep:** wallet, ledger (with Basescan tx links), reputation, hash-chain verify, reconcile, "New session" (operator token).
+7. **Task history survives a Beacon restart.** `GET /api/tasks` returns the last 30 tasks with their chat (`/api/tasks/:id/chat`). A task that was running at restart comes back as `stopped` with a notice. The event stream and `poll` history are not restored, so load the chat from the chat endpoint, not from replaying events. Direct-URL purchases now also get chat narration and a summary.
+8. **Model status badge** in the header: from `GET /api/config` `llm.enabled`. Optional tooltip with `llm.usage` per model (`day/rpd`, `minute/rpm`).
+9. **Keep:** wallet, ledger (with Basescan tx links), reputation, hash-chain verify, reconcile, "New session" (operator token).
 
 ### Live updates (important)
 - Use SSE `GET /api/tasks/:id/events` first. If it fails or stalls for about 10 seconds, switch to polling `GET /api/tasks/:id/poll?after=<lastEventId>` every 2 s. Stop when `status` is not `running`.
