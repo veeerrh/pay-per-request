@@ -10,6 +10,7 @@ const PATTERNS = [
   ['PEM private key block', /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/],
   ['AWS access key id', /\bAKIA[0-9A-Z]{16}\b/],
   ['GitHub token', /\bgh[pousr]_[A-Za-z0-9]{30,}\b/],
+  ['Google API key', /AIza[0-9A-Za-z_-]{30,}/],
   ['OpenAI-style key', /\bsk-[A-Za-z0-9]{20,}\b/],
   ['payment or authorization header value', /(authorization|payment-signature|payment-required)["']?\s*[:=]\s*["']?(Bearer\s+)?[A-Za-z0-9+/_=.-]{40,}/i],
   ['long base64 blob', /[A-Za-z0-9+/]{300,}={0,2}/],

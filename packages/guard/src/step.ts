@@ -24,6 +24,11 @@ export interface StepDeps {
   spentBySeller: Map<string, bigint>;
   /** Turns a candidate into a request and runs guard.pay(). Injected so this stays testable. */
   pay: (c: Candidate) => Promise<PayResult>;
+  /**
+   * Optional preference from the buyer agent. It can only move a candidate that is already eligible to the front;
+   * it cannot add a seller, skip a rule or change a price. Unknown ids are ignored.
+   */
+  prefer?: () => string | undefined;
 }
 
 /**
@@ -39,6 +44,8 @@ export async function runStep(d: StepDeps): Promise<StepOutcome> {
   const blocked = () => new Set([...d.exclusions, ...local]);
   const first = selectCandidates({ category: d.category, listings: d.listings, reputation: d.reputation, exclusions: blocked(), remaining: d.remaining(), buyerAddress: d.buyerAddress, cfg: d.cfg, spentBySeller: d.spentBySeller });
   const order = first.candidates.map((c) => c.id);
+  const preferred = d.prefer?.();
+  if (preferred && order.includes(preferred)) order.splice(0, order.length, preferred, ...order.filter((id) => id !== preferred));
 
   for (const id of order) {
     if (tried >= d.cfg.fallbackLimit) break;

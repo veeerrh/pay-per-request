@@ -18,7 +18,7 @@ const SERVICES = [
   seller('offline', 4024, 'fixtures/offline.js'),
   // Added in later milestones: the registry holds no key; Beacon is the only process that receives one.
   { name: 'registry', port: 4000, script: 'packages/registry/src/server.js', env: { PORT: '4000' }, allow: BASE, optional: true },
-  { name: 'beacon', port: 4100, script: 'packages/buyer/src/server.js', env: { PORT: '4100' }, allow: [...BASE, 'BEACON_PRIVATE_KEY', 'OPERATOR_TOKEN', 'ENABLE_ATTACK_PANEL', 'MAX_TASK_BUDGET', 'LEDGER_WRITERS', 'REPLAY_PRIVATE_KEY', 'LOG_RANGE'], optional: true },
+  { name: 'beacon', port: 4100, script: 'packages/buyer/src/server.js', env: { PORT: '4100' }, allow: [...BASE, 'BEACON_PRIVATE_KEY', 'OPERATOR_TOKEN', 'ENABLE_ATTACK_PANEL', 'MAX_TASK_BUDGET', 'LEDGER_WRITERS', 'REPLAY_PRIVATE_KEY', 'LOG_RANGE', 'GEMINI_API_KEY', 'GEMINI_MODEL', 'GEMINI_FALLBACK_MODELS', 'BEACON_LLM'], optional: true },
   { name: 'gateway', port: 8080, script: 'packages/gateway/src/gateway.js', env: { PORT: '8080' }, allow: BASE, optional: true },
 ];
 

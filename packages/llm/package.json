@@ -1,0 +1,9 @@
+{
+  "name": "@di06/llm",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/index.js",
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}

@@ -17,11 +17,16 @@ function parseTask(text) {
   const by = /\bby area\b|\blargest\b|\bbiggest\b/.test(t) && !/\bmost populous\b/.test(t) ? 'area' : 'population';
   const mag = t.match(/magnitude\s+(?:of\s+)?(\d+(?:\.\d+)?)/);
   const days = t.match(/(?:last|past)\s+(\d+)\s+days?/);
-  const p = { n, by, minMag: mag ? Number(mag[1]) : 4.5, days: days ? Number(days[1]) : 7 };
+  return validateParams({ n, by, minMag: mag ? Number(mag[1]) : 4.5, days: days ? Number(days[1]) : 7 });
+}
+
+/** The same bounds apply to a plan from the rules and to one proposed by a model: code has the last word. */
+function validateParams(p) {
   if (!Number.isInteger(p.n) || p.n < 1 || p.n > 5) throw new PlanError('The number of countries must be between 1 and 5.');
+  if (!['population', 'area'].includes(p.by)) throw new PlanError('Countries can be ranked by population or by area.');
   if (!Number.isInteger(p.days) || p.days < 1 || p.days > 30) throw new PlanError('The time window must be between 1 and 30 days.');
   if (!Number.isFinite(p.minMag) || p.minMag < 0 || p.minMag > 9) throw new PlanError('The minimum magnitude must be between 0 and 9.');
-  return p;
+  return { n: p.n, by: p.by, minMag: p.minMag, days: p.days };
 }
 
 /** scrape -> data (one call per country) -> inference (batches of at most 2 countries, S-45). */
@@ -48,4 +53,4 @@ function estimateMin(plan, listings) {
   return total;
 }
 
-module.exports = { parseTask, buildPlan, estimateMin, PlanError };
+module.exports = { parseTask, validateParams, buildPlan, estimateMin, PlanError };

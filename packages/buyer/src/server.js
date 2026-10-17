@@ -9,6 +9,8 @@ const path = require('path');
 const fs = require('fs');
 const g = require('@di06/guard');
 const { runTask, runDirect } = require('./runner');
+const { createBeacon, factsFromTask } = require('./beacon');
+const { createLlmFromEnv } = require('@di06/llm');
 
 const ROOT = path.join(__dirname, '..', '..', '..');
 const ser = (o) => JSON.parse(JSON.stringify(o, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)));
@@ -33,6 +35,7 @@ const TaskReq = z.object({
  */
 function createServer(deps) {
   const { store, budget, signer, chain, cfg } = deps;
+  const beacon = deps.beacon || createBeacon({ log: deps.log });
   const maxTaskBudget = BigInt(deps.maxTaskBudget ?? 5_000_000);
   const state = { halted: false, haltReason: '', tasks: new Map(), seq: 0, balance: { at: 0, v: 0n } };
   const ruleSetHash = () => g.ruleSetHash(cfg, path.join(ROOT, 'packages', 'guard', 'dist', 'rules'));
@@ -122,13 +125,17 @@ function createServer(deps) {
     startedAt: t.startedAt, endedAt: t.endedAt, spent: t.spent, reserved: t.reserved, paidCalls: t.paidCalls, services: t.services, result: t.result, notice: t.notice,
   });
   function apply(t, ev) {
-    if (ev.type === 'stage') t.stage = ev.stage;
+    if (ev.type === 'plan') t.params = ev.params;
+    else if (ev.type === 'choice') t.choices.push({ category: ev.category, id: ev.sellerId, name: ev.seller, reason: ev.reason, source: ev.source });
+    else if (ev.type === 'ledger') t.ledger.push(ev.entry);
+    else if (ev.type === 'chat') { t.chat.push({ id: ev.id, role: ev.role, kind: ev.kind, text: ev.text, at: ev.at }); if (t.chat.length > 200) t.chat.shift(); }
+    else if (ev.type === 'stage') t.stage = ev.stage;
     else if (ev.type === 'metrics') Object.assign(t, { spent: ev.spent, reserved: ev.reserved, paidCalls: ev.paidCalls, services: ev.services });
     else if (ev.type === 'blocked') { t.status = 'blocked'; t.notice = ev.notice; t.endedAt = ev.at; }
     else if (ev.type === 'done') { t.status = ev.status; t.notice = ev.notice; t.result = ev.result; t.endedAt = ev.at; }
   }
   function emit(t, ev) {
-    const e = { ...ev, id: t.events.length + 1 };
+    const e = { ...ev, id: ++t.lastEventId }; // a counter, not the array length: the log is capped and ids must keep rising for polling
     t.events.push(e);
     if (t.events.length > 500) t.events.shift();
     apply(t, e);
@@ -157,10 +164,11 @@ function createServer(deps) {
     const t = {
       id, text: body.text ?? `Direct purchase from ${body.directUrl.url}`, budget: body.budget, maxConcurrency: body.maxConcurrency, hired: body.hired, kind: body.directUrl ? 'direct' : 'task',
       status: 'running', stage: null, startedAt: new Date().toISOString(), endedAt: null, spent: '0', reserved: '0', paidCalls: 0, services: [], result: null, notice: '', events: [], subs: new Set(),
+      lastEventId: 0, params: null, choices: [], ledger: [], chat: [],
     };
     state.tasks.set(id, t);
     res.status(202).json({ taskId: id });
-    const ctx = { store, budget, signer, cfg, chain, log: deps.log, listings: deps.listings, allowPrivate: deps.allowPrivate };
+    const ctx = { store, budget, signer, cfg, chain, log: deps.log, listings: deps.listings, allowPrivate: deps.allowPrivate, beacon };
     const em = (ev) => emit(t, ev);
     (body.directUrl
       ? runDirect(ctx, { taskId: id, budget: b, directUrl: { ...body.directUrl, expectedPrice: BigInt(body.directUrl.expectedPrice) } }, em)
@@ -175,6 +183,35 @@ function createServer(deps) {
   app.get('/api/tasks/:id', (req, res) => {
     const t = state.tasks.get(req.params.id);
     return t ? res.json(snapshot(t)) : res.status(404).json({ error: 'not_found' });
+  });
+
+  // Polling fallback for networks where the event stream does not pass (some tunnels and proxies).
+  app.get('/api/tasks/:id/poll', (req, res) => {
+    const t = state.tasks.get(req.params.id);
+    if (!t) return res.status(404).json({ error: 'not_found' });
+    const after = Number(req.query.after) || 0;
+    res.json(ser({ events: t.events.filter((e) => e.id > after), lastEventId: t.lastEventId, status: t.status }));
+  });
+
+  // ---------- Beacon chat: the live feed of what it did and why, plus questions answered from recorded facts ----------
+  const chatLimiter = rateLimit({ windowMs: 60_000, limit: deps.chatLimit ?? 12, standardHeaders: 'draft-7', legacyHeaders: false, message: { error: 'rate_limited', detail: 'Too many chat messages, wait a minute.' } });
+  const latestTask = () => [...state.tasks.values()].at(-1);
+  app.get('/api/tasks/:id/chat', (req, res) => {
+    const t = state.tasks.get(req.params.id);
+    return t ? res.json(ser({ messages: t.chat, status: t.status, usesModel: beacon.usesModel })) : res.status(404).json({ error: 'not_found' });
+  });
+  const ChatReq = z.object({ message: z.string().trim().min(1, 'Type a question.').max(500, 'Keep it under 500 characters.'), taskId: z.string().regex(/^t\d+_[a-f0-9]{6}$/).optional() });
+  // The chat explains and summarises. It cannot start a purchase or move money: only POST /api/tasks does that.
+  app.post('/api/chat', chatLimiter, async (req, res) => {
+    const p = ChatReq.safeParse(req.body);
+    if (!p.success) return res.status(400).json({ error: 'invalid_message', issues: p.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) });
+    const t = p.data.taskId ? state.tasks.get(p.data.taskId) : latestTask();
+    if (p.data.taskId && !t) return res.status(404).json({ error: 'not_found' });
+    const history = t ? t.chat.slice(-8).map((m) => ({ role: m.role, text: m.text })) : [];
+    if (t) emit(t, { type: 'chat', role: 'user', kind: 'question', text: p.data.message, at: new Date().toISOString() });
+    const a = await beacon.answer({ question: p.data.message, facts: factsFromTask(t), history });
+    if (t) emit(t, { type: 'chat', role: 'beacon', kind: 'answer', text: a.text, at: new Date().toISOString() });
+    res.json({ reply: a.text, source: a.source, taskId: t?.id ?? null });
   });
 
   app.get('/api/tasks/:id/events', (req, res) => {
@@ -274,7 +311,10 @@ async function main() {
   let replaySigner; try { replaySigner = g.createSigner('REPLAY_PRIVATE_KEY'); } catch { /* attack replay5 reports the wallet is not configured */ }
   const extend = process.env.ENABLE_ATTACK_PANEL === 'true' ? (() => { try { return require('./attacks').install; } catch { return undefined; } })() : undefined;
 
-  const app = createServer({ store, budget, signer, chain, cfg, listings, services, registryUrl, operatorToken, log, allowPrivate: process.env.ALLOW_PRIVATE_ENDPOINTS === 'true', maxTaskBudget: process.env.MAX_TASK_BUDGET, extend, replaySigner });
+  const llm = createLlmFromEnv(process.env);
+  const beacon = createBeacon({ llm, log });
+  log('info', llm.enabled ? `Beacon agent uses a model: ${llm.models.join(' then ')}` : 'Beacon agent runs rule-based (no model key set or BEACON_LLM=off)');
+  const app = createServer({ store, budget, signer, chain, cfg, listings, services, beacon, registryUrl, operatorToken, log, allowPrivate: process.env.ALLOW_PRIVATE_ENDPOINTS === 'true', maxTaskBudget: process.env.MAX_TASK_BUDGET, extend, replaySigner });
   if (start.spendingHalted) { app.state.halted = true; app.state.haltReason = start.reason; }
   const port = Number(process.env.PORT || 4100);
   app.listen(port, () => console.log(`Beacon on :${port} (buyer ${signer.address}, session ${store.sessionId})`));

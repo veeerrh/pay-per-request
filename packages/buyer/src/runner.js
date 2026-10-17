@@ -1,8 +1,9 @@
 // Beacon's runner: executes a plan through guard.runStep / guard.pay and emits typed events (Appendix B).
 // The runner never signs anything itself: every payment goes through guard.pay() (M-37).
 const g = require('@di06/guard');
-const { parseTask, buildPlan, estimateMin, PlanError } = require('./planner');
+const { buildPlan, estimateMin, PlanError } = require('./planner');
 const { buildResult, fmt } = require('./reporter');
+const { createBeacon, factsFromTask } = require('./beacon');
 
 /**
  * ctx: { store, budget, signer, cfg, chain, listings: () => Promise<Listing[]>, log, now? }
@@ -11,11 +12,17 @@ const { buildResult, fmt } = require('./reporter');
 async function runTask(ctx, req, emit = () => {}) {
   const { store, budget, signer, cfg, chain } = ctx;
   const taskId = req.taskId;
+  const beacon = ctx.beacon || createBeacon({ log: ctx.log });
   const act = (kind, text) => emit({ type: 'activity', kind, text, at: new Date().toISOString() });
+  /** A line in the Beacon chat. Built from recorded facts; the chat shows what Beacon did and why. */
+  const say = (text, kind = 'info') => emit({ type: 'chat', role: 'beacon', kind, text, at: new Date().toISOString() });
   const stage = (s) => emit({ type: 'stage', stage: s });
   const attempts = [];
   const exclusions = new Set();
   const spentBySeller = new Map();
+  const preferred = new Map(); // category -> seller id chosen by Beacon; only ever one of the eligible candidates
+  const choices = [];
+  const ledgerRows = [];
   let seq = 0;
   let paidCalls = 0;
   const accepted = new Set();
@@ -23,13 +30,19 @@ async function runTask(ctx, req, emit = () => {}) {
   const blocked = (notice) => {
     emit({ type: 'blocked', notice, at: new Date().toISOString() });
     act('blocked', notice);
+    say(`I stopped before buying anything: ${notice}`, 'blocked');
     return { status: 'blocked', notice };
   };
 
   stage('plan');
   act('start', `Task started with a ${fmt(req.budget)} USDC hard cap (max concurrency ${req.maxConcurrency}).`);
   let params;
-  try { params = parseTask(req.text); } catch (e) { if (e instanceof PlanError) return blocked(e.message); throw e; }
+  try {
+    const planned = await beacon.plan(req.text);
+    params = planned.params;
+    emit({ type: 'plan', params, source: planned.source });
+    say(`I read your task as: ${planned.understanding}. Budget is a hard cap of ${fmt(req.budget)} USDC. I will find the countries, fetch earthquake data for each, then have a readiness brief written.`, 'plan');
+  } catch (e) { if (e instanceof PlanError) return blocked(e.message); throw e; }
   const plan = buildPlan(params);
 
   // Listings: take the snapshot once at task start (M-54). Hired agents pin their category.
@@ -64,6 +77,7 @@ async function runTask(ctx, req, emit = () => {}) {
   const mkPay = (build) => async (c) => {
     const requestId = `${taskId}-${++seq}`;
     act('select', `${c.name} selected for the ${c.category} step: ${c.why}.`);
+    if (preferred.get(c.category) !== c.id) say(`Trying ${c.name} for the ${c.category} step next (${c.why}).`, 'select');
     const r = build(c);
     const result = await g.pay(deps, {
       requestId, taskId, seller: { id: c.id, name: c.name, category: c.category },
@@ -71,26 +85,43 @@ async function runTask(ctx, req, emit = () => {}) {
       url: r.url, method: r.method, body: r.body, validate: r.validate, meta: { why: c.why, source: 'task' },
     });
     const entry = store.listEntries().find((e) => e.id === requestId);
-    if (entry) emit({ type: 'ledger', entry: { ...entry, buyer: 'Scout', seller: c.name, why: c.why, source: 'task' } });
+    if (entry) { emit({ type: 'ledger', entry: { ...entry, buyer: 'Scout', seller: c.name, why: c.why, source: 'task' } }); ledgerRows.push({ ...entry, seller: c.name }); }
     if (result.paid > 0n) paidCalls++;
     if (result.status === 'paid') accepted.add(c.id);
     const price = fmt(result.paid);
-    if (result.status === 'refused') act('refused', `${c.name} refused: ${result.reason}`);
-    else if (result.status === 'failed') act('failed', `${c.name} failed, not charged: ${result.reason}`);
-    else if (result.status === 'pending') act('info', `${c.name} is pending: ${result.reason}`);
+    if (result.status === 'refused') { act('refused', `${c.name} refused: ${result.reason}`); say(`I refused ${c.name} before signing anything, so nothing was paid: ${result.reason}`, 'refused'); }
+    else if (result.status === 'failed') { act('failed', `${c.name} failed, not charged: ${result.reason}`); say(`${c.name} did not deliver and I was not charged: ${result.reason}`, 'failed'); }
+    else if (result.status === 'pending') { act('info', `${c.name} is pending: ${result.reason}`); say(`${c.name}'s payment is still settling: ${result.reason}`, 'pending'); }
     else {
       act('settled', `Paid ${price} test USDC to ${c.name}.`);
-      if (result.status === 'paid') act('validated', `${c.name} output validated.`);
-      else act('rejected', `${c.name} output rejected: ${result.reason}. ${c.name} is excluded for the rest of this task.`);
+      if (result.status === 'paid') { act('validated', `${c.name} output validated.`); say(`Paid ${price} USDC to ${c.name}. Its answer passed my checks.`, 'paid'); }
+      else { act('rejected', `${c.name} output rejected: ${result.reason}. ${c.name} is excluded for the rest of this task.`); say(`Paid ${price} USDC to ${c.name}, but its answer failed my checks (${result.reason}). I will not use ${c.name} again in this task.`, 'rejected'); }
       emit({ type: 'output', call: entry?.callNo ?? null, agent: c.id, status: result.status === 'paid' ? 'accepted' : 'rejected', output: result.status === 'paid' ? result.output : String(entry?.rawOutput ?? '').slice(0, 500) });
     }
     metrics();
     return result;
   };
 
+  // Beacon picks among the sellers the safety rules already approved. Once per category: later calls in the same step reuse the pick.
+  const chooseFor = async (category, reputation) => {
+    if (preferred.has(category)) return;
+    preferred.set(category, undefined);
+    const candidates = g.selectCandidates({ category, listings, reputation, exclusions, remaining: budget.totals(taskId).remaining, buyerAddress: signer.address, cfg, spentBySeller }).candidates;
+    if (!candidates.length) return;
+    const label = plan.steps.find((s) => s.category === category)?.label ?? category;
+    const pick = await beacon.choose({ category, label, candidates, taskText: req.text });
+    const picked = candidates.find((c) => c.id === pick.id) ?? candidates[0];
+    preferred.set(category, picked.id);
+    choices.push({ category, id: picked.id, name: picked.name, reason: pick.reason, source: pick.source });
+    emit({ type: 'choice', category, sellerId: picked.id, seller: picked.name, reason: pick.reason, source: pick.source, at: new Date().toISOString() });
+    say(`For the ${category} step I hire ${picked.name}. ${pick.reason}`, 'choice');
+  };
+
   const step = async (category, build, reputation) => {
+    await chooseFor(category, reputation);
     const out = await g.runStep({
       category, listings, reputation, exclusions, remaining: () => budget.totals(taskId).remaining, buyerAddress: signer.address, cfg, spentBySeller, pay: mkPay(build),
+      prefer: () => preferred.get(category),
     });
     out.attempts.forEach((a) => attempts.push(a));
     if (out.stop) act('stopped', `${category} step: ${out.stop.message}`);
@@ -159,6 +190,12 @@ async function runTask(ctx, req, emit = () => {}) {
   metrics();
   const status = complete ? 'completed' : 'stopped';
   act(complete ? 'completed' : 'stopped', complete ? `Task completed. Spent ${fmt(totals.spent)} of ${fmt(totals.budget)} USDC.` : notice);
+  result.choices = choices.map((c) => ({ category: c.category, sellerId: c.id, seller: c.name, reason: c.reason, source: c.source }));
+  const summary = await beacon.summarize(factsFromTask({
+    text: req.text, status, stage: 'combine', notice, budget: String(totals.budget), spent: String(totals.spent), paidCalls, params, choices, ledger: ledgerRows, result,
+  }));
+  result.beaconSummary = { text: summary.text, source: summary.source };
+  say(summary.text, 'summary');
   emit({ type: 'done', status, notice, result, at: new Date().toISOString() }); // last event: the stream ends here
   return { status, notice, result, totals, attempts, entries, params };
 }

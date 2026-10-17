@@ -5,6 +5,8 @@ const PATTERNS: Array<[RegExp, string]> = [
   [/(payment-signature["']?\s*[:=]\s*["']?)[A-Za-z0-9+/_=-]{20,}/gi, '$1[redacted]'],
   [/(payment-required["']?\s*[:=]\s*["']?)[A-Za-z0-9+/_=-]{20,}/gi, '$1[redacted]'],
   [/(authorization["']?\s*[:=]\s*["']?)[^\s"',}]{8,}/gi, '$1[redacted]'],
+  [/AIza[0-9A-Za-z_-]{30,}/g, '[redacted-api-key]'],
+  [/(api[_-]?key["']?\s*[:=]\s*["']?)[^\s"',}]{8,}/gi, '$1[redacted]'],
   [/(private[_-]?key["']?\s*[:=]\s*["']?)[^\s"',}]+/gi, '$1[redacted]'],
   [/[A-Za-z0-9+/]{200,}={0,2}/g, '[redacted-blob]'],
 ];
