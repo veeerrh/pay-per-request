@@ -142,17 +142,25 @@ function createLlm(opts = {}) {
   return { enabled, models, stats, generateJson, generateText, isMock: !!mock };
 }
 
-/** Reads the environment. This is the only place GEMINI_API_KEY is read. */
-function createLlmFromEnv(env = process.env, extra = {}) {
-  if (env.BEACON_LLM === 'off' || env.LLM_MODE === 'off') return createLlm({ ...extra });
+/**
+ * Reads the environment. This is the only place GEMINI_API_KEY is read.
+ * agent (for example 'ATLAS'): honours ATLAS_LLM=off and prefers ATLAS_GEMINI_API_KEY, so each agent can have its own key and quota.
+ * LLM_MODE=off turns every agent to its rule-based path.
+ */
+function createLlmFromEnv(env = process.env, extra = {}, agent = '') {
+  const A = String(agent).toUpperCase();
+  if (env.LLM_MODE === 'off' || (A && env[`${A}_LLM`] === 'off')) return createLlm({ ...extra });
   const models = [env.GEMINI_MODEL || 'gemini-3.5-flash-lite', ...String(env.GEMINI_FALLBACK_MODELS ?? 'gemini-3.8-flash').split(',').map((s) => s.trim()).filter(Boolean)];
-  return createLlm({ apiKey: env.GEMINI_API_KEY || '', models: [...new Set(models)], ...extra });
+  const apiKey = (A && env[`${A}_GEMINI_API_KEY`]) || env.GEMINI_API_KEY || '';
+  return createLlm({ apiKey, models: [...new Set(models)], ...extra });
 }
 
 /** Numbers in model prose must come from the facts it was given. Returns true when every number is grounded. */
 function numbersGrounded(text, factsText) {
-  const have = new Set((String(factsText).match(/\d+(?:[.,]\d+)?/g) || []).map((n) => n.replace(/,/g, '')));
-  for (const n of String(text).match(/\d+(?:[.,]\d+)?/g) || []) if (!have.has(n.replace(/,/g, ''))) return false;
+  const NUM = /\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?/g; // 1,330,044,000 is one number, 0.005 is one number
+  const norm = (n) => n.replace(/,/g, '');
+  const have = new Set((String(factsText).match(NUM) || []).map(norm));
+  for (const n of String(text).match(NUM) || []) if (!have.has(norm(n))) return false;
   return true;
 }
 

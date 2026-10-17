@@ -62,7 +62,10 @@ describe('llm client', () => {
     const llm = createLlmFromEnv({});
     expect(llm.enabled).toBe(false);
     await expect(llm.generateText({ name: 't', system: 's', user: 'u' })).rejects.toBeInstanceOf(LlmUnavailable);
-    expect(createLlmFromEnv({ GEMINI_API_KEY: 'x', BEACON_LLM: 'off' }).enabled).toBe(false);
+    expect(createLlmFromEnv({ GEMINI_API_KEY: 'x', BEACON_LLM: 'off' }, {}, 'BEACON').enabled).toBe(false);
+    expect(createLlmFromEnv({ GEMINI_API_KEY: 'x', BEACON_LLM: 'off' }, {}, 'ATLAS').enabled).toBe(true);
+    expect(createLlmFromEnv({ GEMINI_API_KEY: 'x', LLM_MODE: 'off' }, {}, 'ATLAS').enabled).toBe(false);
+    expect(createLlmFromEnv({ ATLAS_GEMINI_API_KEY: 'y' }, {}, 'ATLAS').enabled).toBe(true);
     const on = createLlmFromEnv({ GEMINI_API_KEY: 'x', GEMINI_MODEL: 'a', GEMINI_FALLBACK_MODELS: 'b, c' });
     expect(on.enabled).toBe(true);
     expect(on.models).toEqual(['a', 'b', 'c']);
@@ -77,6 +80,8 @@ describe('llm client', () => {
     expect(quote('a', { k: 1n })).toContain('"k": "1"');
     expect(numbersGrounded('Paid 0.005 and 3 calls', 'paid 0.005 over 3 calls')).toBe(true);
     expect(numbersGrounded('Paid 0.009', 'paid 0.005')).toBe(false);
+    expect(numbersGrounded('Population 1,330,044,000.', '{"population":1330044000}')).toBe(true);
+    expect(numbersGrounded('Population 1,330,044,001.', '{"population":1330044000}')).toBe(false);
   });
   it('11 only this package reads GEMINI_API_KEY', () => {
     const root = path.join(__dirname, '..', '..');

@@ -5,7 +5,7 @@
   "port": 4011,
   "path": "/countries",
   "method": "GET",
-  "description": "Honest scraper. Checks robots.txt, fetches a public country list and returns the top N countries by population or area.",
+  "description": "Scraping agent. Checks robots.txt, scrapes a public country list, ranks it in code and returns the top N countries by population or area, with a short model-written data note per country and a one-line summary.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -51,9 +51,20 @@
             "area_km2": {
               "type": "number",
               "exclusiveMinimum": 0
+            },
+            "note": {
+              "type": "string",
+              "maxLength": 160
             }
           }
         }
+      },
+      "summary": {
+        "type": "string",
+        "maxLength": 240
+      },
+      "meta": {
+        "type": "object"
       }
     }
   },
