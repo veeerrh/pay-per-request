@@ -128,6 +128,7 @@ function createServer(deps) {
     if (ev.type === 'plan') t.params = ev.params;
     else if (ev.type === 'choice') t.choices.push({ category: ev.category, id: ev.sellerId, name: ev.seller, reason: ev.reason, source: ev.source });
     else if (ev.type === 'ledger') t.ledger.push(ev.entry);
+    else if (ev.type === 'note') t.agentNotes.push({ agent: ev.agent, category: ev.category, text: ev.text });
     else if (ev.type === 'chat') { t.chat.push({ id: ev.id, role: ev.role, kind: ev.kind, text: ev.text, at: ev.at }); if (t.chat.length > 200) t.chat.shift(); }
     else if (ev.type === 'stage') t.stage = ev.stage;
     else if (ev.type === 'metrics') Object.assign(t, { spent: ev.spent, reserved: ev.reserved, paidCalls: ev.paidCalls, services: ev.services });
@@ -164,7 +165,7 @@ function createServer(deps) {
     const t = {
       id, text: body.text ?? `Direct purchase from ${body.directUrl.url}`, budget: body.budget, maxConcurrency: body.maxConcurrency, hired: body.hired, kind: body.directUrl ? 'direct' : 'task',
       status: 'running', stage: null, startedAt: new Date().toISOString(), endedAt: null, spent: '0', reserved: '0', paidCalls: 0, services: [], result: null, notice: '', events: [], subs: new Set(),
-      lastEventId: 0, params: null, choices: [], ledger: [], chat: [],
+      lastEventId: 0, params: null, choices: [], ledger: [], chat: [], agentNotes: [],
     };
     state.tasks.set(id, t);
     res.status(202).json({ taskId: id });

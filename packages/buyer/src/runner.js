@@ -22,6 +22,15 @@ async function runTask(ctx, req, emit = () => {}) {
   const spentBySeller = new Map();
   const preferred = new Map(); // category -> seller id chosen by Beacon; only ever one of the eligible candidates
   const choices = [];
+  const agentNotes = [];
+  /** What a hired agent added to its answer (Atlas notes, Tremor digest, Brief actions). Only from outputs that passed validation. */
+  const agentNote = (agent, category, text) => {
+    const t = String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, 300);
+    if (!t) return;
+    agentNotes.push({ agent, category, text: t });
+    emit({ type: 'note', agent, category, text: t, at: new Date().toISOString() });
+    say(`${agent} adds: ${t}`, 'agent');
+  };
   const ledgerRows = [];
   let seq = 0;
   let paidCalls = 0;
@@ -140,6 +149,12 @@ async function runTask(ctx, req, emit = () => {}) {
     validate: g.makeValidator({ outputSchema: c.outputSchema, sanity: 'atlas', context: { top: params.n } }),
   }), snapshotRep()));
   const countries = sc.accepted ? sc.accepted.result.output.countries.map((c) => c.name) : [];
+  if (sc.accepted) {
+    const o = sc.accepted.result.output;
+    const who = sc.accepted.candidate.name;
+    if (o.summary) agentNote(who, 'scraping', o.summary);
+    for (const c of o.countries) if (c.note) agentNote(who, 'scraping', `${c.name}: ${c.note}`);
+  }
 
   // 2. data: one call per country. Probe-first: the first call runs alone so a liar is discovered once,
   // then the rest run in parallel up to max_concurrency.
@@ -149,7 +164,10 @@ async function runTask(ctx, req, emit = () => {}) {
       url: `${c.endpoint}?country=${encodeURIComponent(country)}&days=${params.days}&minMag=${params.minMag}`,
       validate: g.makeValidator({ outputSchema: c.outputSchema, sanity: 'tremor', context: { country, days: params.days, minMag: params.minMag } }),
     }), rep()));
-    if (out.accepted) quakeByCountry.set(country, out.accepted.result.output);
+    if (out.accepted) {
+      quakeByCountry.set(country, out.accepted.result.output);
+      if (out.accepted.result.output.digest) agentNote(out.accepted.candidate.name, 'data', `${country}: ${out.accepted.result.output.digest}`);
+    }
     return out;
   };
   if (countries.length) {
@@ -169,7 +187,10 @@ async function runTask(ctx, req, emit = () => {}) {
       url: c.endpoint, method: 'POST', body: JSON.stringify({ countries: names.map((n) => ({ name: n, quakes: quakeByCountry.get(n).quakes })) }),
       validate: g.makeValidator({ outputSchema: c.outputSchema, sanity: 'brief', context: { countries: names, knownCountries: names } }),
     }), snapshotRep()));
-    if (out.accepted) briefs.push(...out.accepted.result.output.briefs);
+    if (out.accepted) {
+      briefs.push(...out.accepted.result.output.briefs);
+      for (const b of out.accepted.result.output.briefs) if (b.actions?.length) agentNote(out.accepted.candidate.name, 'inference', `Actions for ${b.country}: ${b.actions.join('; ')}`);
+    }
     return out;
   };
   if (batches.length) {
@@ -190,9 +211,10 @@ async function runTask(ctx, req, emit = () => {}) {
   metrics();
   const status = complete ? 'completed' : 'stopped';
   act(complete ? 'completed' : 'stopped', complete ? `Task completed. Spent ${fmt(totals.spent)} of ${fmt(totals.budget)} USDC.` : notice);
+  result.agentNotes = agentNotes;
   result.choices = choices.map((c) => ({ category: c.category, sellerId: c.id, seller: c.name, reason: c.reason, source: c.source }));
   const summary = await beacon.summarize(factsFromTask({
-    text: req.text, status, stage: 'combine', notice, budget: String(totals.budget), spent: String(totals.spent), paidCalls, params, choices, ledger: ledgerRows, result,
+    text: req.text, status, stage: 'combine', notice, budget: String(totals.budget), spent: String(totals.spent), paidCalls, params, choices, ledger: ledgerRows, result, agentNotes,
   }));
   result.beaconSummary = { text: summary.text, source: summary.source };
   say(summary.text, 'summary');

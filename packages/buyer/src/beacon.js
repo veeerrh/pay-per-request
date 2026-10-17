@@ -39,6 +39,7 @@ Return the chosen "id" exactly as given and a "reason" of at most two short sent
 const SUMMARY_SYSTEM = `${ROLE}
 Your job now: write the final report for the user in at most 150 words. Cover: what was asked, which agents you hired and why, what they returned, what it cost against the budget, and anything that went wrong or is uncertain.
 Use only the facts provided. Do not add numbers that are not in the facts.
+Briefly mention what the hired agents added in their own words (agentNotes), attributing each to its agent.
 Write plain text only: no markdown, no asterisks, no headings. Short paragraphs or lines starting with a dash are fine.`;
 
 const ANSWER_SYSTEM = `${ROLE}
@@ -114,6 +115,7 @@ function createBeacon({ llm, log } = {}) {
     const bad = f.purchases.filter((p) => !['paid'].includes(p.status));
     if (bad.length) lines.push(`Problems: ${bad.map((p) => `${p.seller} ${p.status}${p.reason ? ` (${p.reason})` : ''}`).join('; ')}.`);
     if (f.findings.length) lines.push(`Result: ${f.findings.slice(0, 6).join(' ')}`);
+    if (f.agentNotes?.length) lines.push(`What the agents added: ${f.agentNotes.slice(0, 6).map((n) => `${n.agent} - ${n.text}`).join(' | ')}`);
     lines.push(f.status === 'completed' ? 'The task completed.' : `The task ended as ${f.status}.${f.notice ? ` ${f.notice}` : ''}`);
     return lines.join('\n');
   }
@@ -147,6 +149,9 @@ function createBeacon({ llm, log } = {}) {
     if (/\b(fraud|refus|reject|fail|problem|error|wrong|attack|lie|junk)\b/.test(q)) {
       const bad = f.purchases.filter((p) => p.status !== 'paid');
       return bad.length ? bad.map((p) => `${p.seller}: ${p.status}${p.ruleId && p.ruleId !== 'none' ? ` (rule ${p.ruleId})` : ''}${p.reason ? `. ${p.reason}` : ''}`).join('\n') : 'Nothing has gone wrong so far.';
+    }
+    if (/\b(notes?|digest|said|says?|actions?|recommend\w*|commentary|what did (atlas|tremor|brief))\b/.test(q)) {
+      return f.agentNotes?.length ? f.agentNotes.map((n) => `${n.agent}: ${n.text}`).join('\n') : 'The agents have not added any notes yet.';
     }
     if (/\b(result|output|found|find|finding|findings|return|returned|got|quake|earthquake|brief|readiness|answer|data|countries|country)\b/.test(q)) {
       return f.findings.length ? f.findings.join('\n') : 'No results are available yet.';
@@ -194,6 +199,7 @@ function factsFromTask(t) {
       paidUsdc: fmt(e.paid ?? '0'), status: e.status, ruleId: e.ruleId ?? null, reason: clip(e.reason, 200),
     })),
     findings: (t.result?.evidence || []).slice(0, 12).map((s) => clip(s, 300)),
+    agentNotes: (t.agentNotes || []).slice(0, 20).map((n) => ({ agent: clip(n.agent, 40), category: n.category, text: clip(n.text, 300) })),
   };
 }
 

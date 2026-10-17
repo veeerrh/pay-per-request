@@ -134,3 +134,60 @@ describe('Beacon chat API', () => {
     expect(none.reply).toContain('no task yet');
   });
 });
+
+describe('what the hired agents add reaches Beacon (TC-AGENT-5)', () => {
+  const dataOf = (user) => JSON.parse(user.match(/<data label="[^"]*">\n([\s\S]*?)\n<\/data>/)[1]);
+  const mocks = {
+    atlas: createLlm({ mock: ({ user }) => { const f = dataOf(user); return { countries: f.rows.map((r) => ({ name: r.name, note: `${r.name} is in the scraped table.` })), summary: 'Scraped table ranked by population.' }; } }),
+    tremor: createLlm({ mock: ({ user }) => ({ digest: `${dataOf(user).stats.count} events recorded.` }) }),
+    brief: createLlm({ mock: ({ user }) => ({ briefs: dataOf(user).countries.map((c) => ({ country: c.name, brief: `${c.name} is at readiness ${c.readiness}.`, actions: ['Keep stock checks.'] })) }) }),
+  };
+  let w2;
+  beforeAll(async () => { w2 = await startSellers({ llm: mocks }); });
+
+  it('01 notes are posted in the chat, kept on the result and listed with their agent', async () => {
+    const r = rig();
+    const events = [];
+    const out = await runTask({ ...r, cfg, listings: async () => w2.listings, beacon: createBeacon({}) }, { taskId: 'tn1', text: T1, budget: 50000n, maxConcurrency: 3 }, (e) => events.push(e));
+    expect(out.status).toBe('completed');
+    const notes = events.filter((e) => e.type === 'note');
+    expect(notes.map((n) => n.agent)).toEqual(expect.arrayContaining(['Atlas', 'Tremor', 'Brief']));
+    expect(notes.find((n) => n.agent === 'Atlas' && n.text.startsWith('Scraped table'))).toBeTruthy();
+    expect(notes.filter((n) => n.agent === 'Tremor')).toHaveLength(3);
+    expect(notes.filter((n) => n.agent === 'Brief').every((n) => n.text.startsWith('Actions for'))).toBe(true);
+    const agentLines = events.filter((e) => e.type === 'chat' && e.kind === 'agent');
+    expect(agentLines).toHaveLength(notes.length);
+    expect(agentLines[0].text).toMatch(/^(Atlas|Tremor|Brief) adds: /);
+    expect(out.result.agentNotes).toHaveLength(notes.length);
+    expect(out.result.beaconSummary.text).toContain('What the agents added');
+    expect(events.at(-1).type).toBe('done');
+  });
+
+  it('02 a rejected or failed agent adds no notes: only validated answers count', async () => {
+    const r = rig();
+    const events = [];
+    await runTask({ ...r, cfg, listings: async () => w2.listings, beacon: createBeacon({}) }, { taskId: 'tn2', text: T1, budget: 50000n, maxConcurrency: 3 }, (e) => events.push(e));
+    const names = new Set(events.filter((e) => e.type === 'note').map((n) => n.agent));
+    for (const bad of ['Hollow', 'Overquote', 'Redirect', 'Offline']) expect(names.has(bad)).toBe(false);
+  });
+
+  it('03 sellers without a model add no notes and nothing breaks', async () => {
+    const { out } = await run(rig(), createBeacon({}));
+    expect(out.status).toBe('completed');
+    expect(out.result.agentNotes).toEqual([]);
+  });
+
+  it('04 chat answers "what did Tremor say?" from the notes', async () => {
+    const r = rig();
+    const services = async () => w2.listings.map((l) => ({ id: l.id, name: l.name, category: l.category, price: String(l.price), payTo: l.payTo, endpoint: l.endpoint, status: 'active', description: 'd' }));
+    const app = createServer({ ...r, cfg, listings: async () => w2.listings, services, operatorToken: 'tok', allowPrivate: true, beacon: createBeacon({}), chatLimit: 100, taskLimit: 100 });
+    const base = await serve(app);
+    const post = (p, body) => fetch(`${base}${p}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const { taskId } = await (await post('/api/tasks', { text: T1, budget: '50000' })).json();
+    for (let i = 0; i < 200; i++) { const t = await (await fetch(`${base}/api/tasks/${taskId}`)).json(); if (t.status !== 'running') break; await new Promise((x) => setTimeout(x, 100)); }
+    const said = await (await post('/api/chat', { message: 'What did Tremor say about each country?', taskId })).json();
+    expect(said.reply).toMatch(/Tremor: .*events recorded/);
+    const feed = await (await fetch(`${base}/api/tasks/${taskId}/chat`)).json();
+    expect(feed.messages.filter((m) => m.kind === 'agent').length).toBeGreaterThan(5);
+  });
+});

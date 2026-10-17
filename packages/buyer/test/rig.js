@@ -26,15 +26,15 @@ export function testSigner() {
 const GEO = ['China', 'India', 'United States', 'Indonesia', 'Brazil', 'Pakistan'];
 const COUNTRIES = GEO.map((name, i) => ({ name, capital: 'x', population: 1000000 * (10 - i), area_km2: 1000 * (10 - i) }));
 
-export async function startSellers() {
+export async function startSellers(opts = {}) {
   const fac = await stubFacilitator();
   process.env.FACILITATOR_URL = fac.url;
   const S = (f) => require(`../../sellers/src/${f}`);
   const quakeFetch = async () => ({ ok: true, json: async () => ({ features: [{ properties: { mag: 5.1, place: 'sample place', time: Date.now() - 86400000 } }] }) });
   const apps = {
-    atlas: S('atlas.js').createAtlas({ requiredBy: null, scrape: async () => COUNTRIES }),
-    tremor: S('tremor.js').createTremor({ requiredBy: null, fetch: quakeFetch }),
-    brief: S('brief.js').createBrief({ requiredBy: null }),
+    atlas: S('atlas.js').createAtlas({ requiredBy: null, scrape: async () => COUNTRIES, llm: opts.llm?.atlas }),
+    tremor: S('tremor.js').createTremor({ requiredBy: null, fetch: quakeFetch, llm: opts.llm?.tremor }),
+    brief: S('brief.js').createBrief({ requiredBy: null, llm: opts.llm?.brief }),
     overquote: S('fixtures/overquote.js').app,
     redirect: S('fixtures/redirect.js').app,
     hollow: S('fixtures/hollow.js').createHollow({ requiredBy: null }),
