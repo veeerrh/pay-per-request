@@ -110,7 +110,7 @@ describe('approval above a limit, end to end', () => {
     expect((await post(base, `/api/tasks/${taskId}/approvals/${p.approvalId}`, { decision: 'approve' })).status).toBe(200);
     const t = await finished(base, taskId);
     expect(t.status).toBe('completed');
-    expect(t.spent).toBe('39000'); // the same spend as a run without a limit (see beacon-gaps)
+    expect(t.spent).toBe('35000'); // the same spend as a run without a limit (see beacon-gaps)
     const j = await getJson(base, `/api/tasks/${taskId}/poll?after=0`);
     expect(j.events.filter((e) => e.type === 'approval').map((e) => e.status)).toEqual(['pending', 'approved']); // asked once for the seller, not once per call
     const chat = (await getJson(base, `/api/tasks/${taskId}/chat`)).messages.map((m) => m.text).join('\n');

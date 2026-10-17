@@ -24,7 +24,7 @@ function nonceFromHeader(h) {
 }
 
 /**
- * opts: { name, method, path, priceUnits (string), payTo, description, claimsDb, facilitatorUrl,
+ * opts: { name, method, path, priceUnits (string, the listed ceiling), priceFn?(body)->units (metered quote), payTo, description, claimsDb, facilitatorUrl,
  *         inputCheck(req)->string|null, handler(req)->object, outputCheck(output)->string|null, handlerTimeoutMs }
  */
 function createSellerApp(opts) {
@@ -50,9 +50,19 @@ function createSellerApp(opts) {
   // 2. Standard x402 v2 middleware: 402 challenge, verify, buffer, settle only on a successful handler.
   const facilitator = new HTTPFacilitatorClient({ url: opts.facilitatorUrl || 'https://x402.org/facilitator' });
   const resourceServer = new x402ResourceServer(facilitator).register(NETWORK, new ExactEvmScheme());
+  // Metered pricing: priceUnits is the listed CEILING. If priceFn is given it quotes from the request body (for example per country),
+  // never above the ceiling and never zero; any problem falls back to the ceiling. The buyer's price rule already allows a lower ask.
+  const ceiling = BigInt(opts.priceUnits);
+  const price = typeof opts.priceFn === 'function'
+    ? (ctx) => {
+      let units = ceiling;
+      try { const q = BigInt(opts.priceFn(ctx?.adapter?.getBody?.())); if (q > 0n && q < ceiling) units = q; } catch { /* quote failed: charge the ceiling, never more */ }
+      return `$${formatUsdc(units)}`;
+    }
+    : `$${formatUsdc(ceiling)}`;
   const routes = {
     [routeKey]: {
-      accepts: [{ scheme: 'exact', price: `$${formatUsdc(BigInt(opts.priceUnits))}`, network: NETWORK, payTo: opts.payTo, maxTimeoutSeconds: opts.maxTimeoutSeconds || 120 }],
+      accepts: [{ scheme: 'exact', price, network: NETWORK, payTo: opts.payTo, maxTimeoutSeconds: opts.maxTimeoutSeconds || 120 }],
       description: opts.description || opts.name,
     },
   };

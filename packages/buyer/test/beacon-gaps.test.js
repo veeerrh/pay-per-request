@@ -52,7 +52,7 @@ describe('Beacon small gaps (TC-AGENT-6)', () => {
     const after = await (await fetch(`${b}/api/tasks/${taskId}/chat`)).json();
     expect(after.messages.map((m) => m.text)).toEqual(before.messages.map((m) => m.text));
     const cost = await (await post(b, '/api/chat', { message: 'how much did it cost?', taskId })).json();
-    expect(cost.reply).toContain('0.039');
+    expect(cost.reply).toContain('0.035');
     // a new task after the restart gets a fresh id
     const next = await runViaApi(b);
     expect(next.taskId).not.toBe(taskId);
@@ -117,7 +117,7 @@ describe('Beacon small gaps (TC-AGENT-6)', () => {
     const notices = events.filter((e) => e.type === 'chat' && e.kind === 'notice');
     expect(notices).toHaveLength(1);
     expect(notices[0].text).toContain('free request budget is full');
-    expect(out.totals.spent).toBe(39000n);
+    expect(out.totals.spent).toBe(35000n);
   });
 
   it('07 a different failure is described differently, and answers carry the budget note', async () => {

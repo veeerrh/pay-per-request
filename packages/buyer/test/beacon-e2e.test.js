@@ -48,12 +48,12 @@ describe('Beacon agent end to end (TC-AGENT-1)', () => {
   it('01 rule-based Beacon still reproduces the design story and records choices, chat lines and a summary', async () => {
     const { out, events } = await run(rig(), createBeacon({}));
     expect(out.status).toBe('completed');
-    expect(out.totals.spent).toBe(39000n);
+    expect(out.totals.spent).toBe(35000n);
     const chat = events.filter((e) => e.type === 'chat');
     expect(chat.length).toBeGreaterThan(8);
     expect(chat.map((c) => c.kind)).toEqual(expect.arrayContaining(['plan', 'choice', 'refused', 'paid', 'summary']));
     expect(events.filter((e) => e.type === 'choice').map((c) => c.category)).toEqual(['scraping', 'data', 'inference']);
-    expect(out.result.beaconSummary.text).toContain('0.039');
+    expect(out.result.beaconSummary.text).toContain('0.035');
     expect(events.at(-1).type).toBe('done');
   });
 
@@ -109,7 +109,7 @@ describe('Beacon chat API', () => {
     const why = await (await post(base, '/api/chat', { message: 'Why did you pick those agents?', taskId })).json();
     expect(why.reply).toContain('scraping');
     const cost = await (await post(base, '/api/chat', { message: 'how much did it cost?' })).json();
-    expect(cost.reply).toContain('0.039');
+    expect(cost.reply).toContain('0.035');
     expect(cost.taskId).toBe(taskId);
 
     const poll = await (await fetch(`${base}/api/tasks/${taskId}/poll?after=0`)).json();

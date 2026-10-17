@@ -1,10 +1,14 @@
-// Brief: honest inference agent (0.010 USDC). Code decides the readiness level from the quake data with fixed thresholds.
+// Brief: honest inference agent. Metered: 0.002 base plus 0.004 per country, so one country costs 0.006 and two cost 0.010 (the listed ceiling). Code decides the readiness level from the quake data with fixed thresholds.
 // A model (Gemini, BRIEF_GEMINI_API_KEY) writes the brief and up to three actions for a planner. It cannot change the level,
 // and code drops any text that carries a number the data does not. Without the model Brief answers with its template.
 const crypto = require('crypto');
 const { quote, numbersGrounded, z } = require('@di06/llm');
 const { boot } = require('./common');
 const { agentLlm, memoEnrich, clean } = require('./agent-kit');
+
+/** Metered quote in USDC units, from the number of countries in the request. The listed price (10000) is the ceiling. */
+const METER = { base: 2000, perCountry: 4000 };
+const quoteUnits = (body) => { const n = Array.isArray(body?.countries) ? body.countries.length : 2; return String(METER.base + METER.perCountry * Math.min(Math.max(n, 1), 2)); };
 
 function readiness(quakes) {
   const max = quakes.reduce((m, q) => Math.max(m, q.magnitude), 0);
@@ -65,7 +69,7 @@ function createBrief(opts = {}) {
   }
 
   return boot('brief', 4013, {
-    method: 'POST', path: '/brief', priceUnits: '10000', handlerTimeoutMs: 40000,
+    method: 'POST', path: '/brief', priceUnits: '10000', priceFn: quoteUnits, handlerTimeoutMs: 40000,
     description: 'Writes a short readiness brief for up to 2 countries from data you already bought. The level comes from fixed rules; a model writes the wording.',
     inputCheck: (req) => {
       const list = req.body?.countries;
@@ -93,4 +97,4 @@ function createBrief(opts = {}) {
 }
 
 const app = createBrief();
-module.exports = { app, createBrief, readiness };
+module.exports = { app, createBrief, readiness, quoteUnits, METER };

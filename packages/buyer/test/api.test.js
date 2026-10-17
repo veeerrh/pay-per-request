@@ -59,7 +59,7 @@ describe('Beacon API (TC-6.3)', () => {
     const { taskId } = await r.json();
     const done = await until(async () => { const s = await (await fetch(`${base}/api/tasks/${taskId}`)).json(); return s.status !== 'running' && s; });
     expect(done.status).toBe('completed');
-    expect(done.spent).toBe('39000');
+    expect(done.spent).toBe('35000'); // Atlas 5000, three Tremor 6000, Brief metered: 10000 for two countries and 6000 for one
     const events = await sse(base, taskId);
     expect(events.filter((e) => e.type === 'stage').map((e) => e.stage)).toEqual(['plan', 'discover', 'pay', 'execute', 'validate', 'combine']);
     expect(events.at(-1).type).toBe('done'); // done is the last event: the stream ends there

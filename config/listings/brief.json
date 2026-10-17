@@ -5,7 +5,7 @@
   "port": 4013,
   "path": "/brief",
   "method": "POST",
-  "description": "Inference agent. Writes a short readiness brief for up to 2 countries from data you already bought. The readiness level comes from fixed rules; a model writes the wording and up to three actions.",
+  "description": "Inference agent, metered per country. Writes a short readiness brief for up to 2 countries from data you already bought: 0.006 USDC for one country, 0.010 for two (the listed price is the ceiling). The readiness level comes from fixed rules; a model writes the wording and up to three actions.",
   "inputSchema": {
     "type": "object",
     "required": [
@@ -75,5 +75,7 @@
       }
     }
   },
-  "labels": []
+  "labels": [
+    "metered"
+  ]
 }

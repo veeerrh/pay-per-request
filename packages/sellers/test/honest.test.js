@@ -23,14 +23,16 @@ async function up(factory, opts) {
 }
 
 describe('honest sellers (TC-5.1)', () => {
-  it('01 prices on the 402 are 5000, 2000 and 10000', async () => {
+  it('01 prices on the 402 are 5000, 2000 and, for Brief, 6000 for one country and 10000 for two (metered)', async () => {
     const a = await up(mods.atlas.createAtlas, { scrape: async () => COUNTRIES });
     const t = await up(mods.tremor.createTremor, { fetch: async () => ({ ok: true, json: async () => ({ features: [] }) }) });
     const b = await up(mods.brief.createBrief);
     expect(decode402(await fetch(`${a.base}/countries?top=3`)).accepts[0].amount).toBe('5000');
     expect(decode402(await fetch(`${t.base}/quakes?country=India`)).accepts[0].amount).toBe('2000');
     const r = await fetch(`${b.base}/brief`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ countries: [{ name: 'India', quakes: [] }] }) });
-    expect(decode402(r).accepts[0].amount).toBe('10000');
+    expect(decode402(r).accepts[0].amount).toBe('6000');
+    const two = await fetch(`${b.base}/brief`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ countries: [{ name: 'India', quakes: [] }, { name: 'China', quakes: [] }] }) });
+    expect(decode402(two).accepts[0].amount).toBe('10000'); // the listed ceiling
   });
 
   it('02 Atlas returns the top N by population or area', async () => {

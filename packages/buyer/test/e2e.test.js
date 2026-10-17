@@ -79,17 +79,17 @@ const T3 = 'For the 2 most populous countries, find earthquakes of magnitude 4.0
 const statuses = (store) => store.listEntries().map((e) => `${e.sellerId}:${e.status}`);
 
 describe('Beacon end to end against real seller apps (TC-5.3)', () => {
-  it('01 task 1 cold start reproduces the design story and totals 39,000 units', async () => {
+  it('01 task 1 cold start reproduces the design story and totals 35,000 units (Brief is metered)', async () => {
     const r = rig();
     const out = await r.run({ text: T1, budget: 50000n });
     expect(out.status).toBe('completed');
     const ms = statuses(r.store).sort();
     expect(ms).toEqual(['atlas:paid', 'brief:paid', 'brief:paid', 'hollow:rejected', 'offline:failed', 'overquote:refused', 'redirect:refused', 'tremor:paid', 'tremor:paid', 'tremor:paid'].sort());
-    expect(out.totals.spent).toBe(39000n);
+    expect(out.totals.spent).toBe(35000n);
     expect(r.store.verifyChain().ok).toBe(true);
     expect(out.result.assessment.level).toBe('medium');
     expect(out.result.contributors.map((c) => c.id).sort()).toEqual(['atlas', 'brief', 'tremor']);
-    expect(formatReceipt(out.result.breakdown, out.totals)).toContain('spent 0.039');
+    expect(formatReceipt(out.result.breakdown, out.totals)).toContain('spent 0.035');
   });
 
   it('events: stages in order, spend never above the budget, ends with done', async () => {
@@ -106,7 +106,7 @@ describe('Beacon end to end against real seller apps (TC-5.3)', () => {
     for (const c of [1, 5]) {
       const r = rig();
       const out = await r.run({ text: T1, budget: 50000n, maxConcurrency: c });
-      expect(out.totals.spent, `concurrency ${c}`).toBe(39000n);
+      expect(out.totals.spent, `concurrency ${c}`).toBe(35000n);
     }
   });
 
@@ -130,7 +130,7 @@ describe('Beacon end to end against real seller apps (TC-5.3)', () => {
     const out = await r.run({ text: T1, budget: 50000n });
     expect(out.status).toBe('completed');
     for (const id of ['overquote', 'offline', 'redirect', 'hollow']) expect(hits[id], id).toBe(before[id]);
-    expect(out.totals.spent).toBe(31000n);
+    expect(out.totals.spent).toBe(27000n);
   });
 
   it('06 judge changes the numbers: 2 countries, M4.0, 30 days', async () => {
@@ -171,7 +171,7 @@ describe('Beacon end to end against real seller apps (TC-5.3)', () => {
     const before = { ...hits };
     const out = await r.run({ text: T1, budget: 50000n, hired: ['atlas', 'tremor', 'brief'] });
     expect(out.status).toBe('completed');
-    expect(out.totals.spent).toBe(31000n);
+    expect(out.totals.spent).toBe(27000n);
     for (const id of ['overquote', 'offline', 'redirect', 'hollow']) expect(hits[id], id).toBe(before[id]);
   });
 
