@@ -44,7 +44,7 @@ body[data-route="explore"] .banner-top { background: var(--amber-soft); color: v
 /* Controls re-themed through the tokens; a few colours were hard-coded for the dark theme. */
 body[data-route="explore"] .input,
 body[data-route="explore"] .select,
-body[data-route="explore"] .textarea { background: #fff; color: var(--text); }
+body[data-route="explore"] .textarea { background-color: #fff; color: var(--text); }
 body[data-route="explore"] .select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235d5779' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); }
 body[data-route="explore"] .select option { background: #fff; color: var(--text); }
 body[data-route="explore"] .input:hover,
@@ -63,12 +63,11 @@ body[data-route="explore"] .code-panel pre { color: var(--text); }
 body[data-route="explore"] .skeleton { background: linear-gradient(90deg, #f1edfd, #e6dffb, #f1edfd); }
 
 /* ------- Layout ------- */
-.xp { max-width: 1240px; margin: 0 auto; }
-.xp-top { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; min-height: min(56vh, 520px); padding: 24px 0 8px; transition: min-height 0.35s ease; }
+.xp { max-width: 1280px; margin: 0 auto; }
 .xp-hero { margin-bottom: 22px; }
 .xp-title { font-size: clamp(1.8rem, 4vw, 2.4rem); letter-spacing: -0.02em; font-weight: 750; color: #14102e; }
 .xp-sub { color: var(--muted); margin-top: 8px; font-size: 1.02rem; }
-.xp-composer { width: 100%; max-width: 640px; text-align: left; transition: max-width 0.35s ease; }
+.xp-composer { width: 100%; max-width: 640px; text-align: left; }
 .xp-box { display: flex; align-items: flex-end; gap: 10px; background: rgba(255, 255, 255, 0.92); border: 1px solid var(--border); border-radius: 20px; padding: 10px 10px 10px 18px; box-shadow: 0 12px 40px rgba(90, 65, 190, 0.14), 0 1px 2px rgba(70, 50, 150, 0.06); transition: border-color 0.15s, box-shadow 0.15s; }
 .xp-box:focus-within { border-color: var(--accent); box-shadow: 0 12px 40px rgba(106, 90, 249, 0.2), 0 0 0 3px var(--accent-soft); }
 .xp-box textarea { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; resize: none; font: inherit; font-size: 1.02rem; line-height: 1.5; color: var(--text); padding: 9px 0; max-height: 160px; }
@@ -87,23 +86,35 @@ body[data-route="explore"] .skeleton { background: linear-gradient(90deg, #f1edf
 .xp-options-body { margin-top: 10px; background: rgba(255, 255, 255, 0.92); border: 1px solid var(--border); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); }
 .xp-composer .examples { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 
-/* Active: the composer moves to the top right and becomes compact; the task stays visible on the left. */
-.xp[data-state="active"] .xp-top { flex-direction: row; align-items: flex-start; justify-content: space-between; text-align: left; gap: 20px; min-height: 0; padding: 8px 0 18px; }
+/* Landing: nothing but the centered task box, with the budget and options visible under it. */
+.xp[data-state="idle"] { min-height: calc(100vh - 150px); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding-bottom: 40px; }
+.xp[data-state="idle"] .xp-options > summary { display: none; } /* always open on the landing page, nothing to toggle */
+
+/* Working: the box moves to the top right, the task status stacks below it, everything else fills the main area. */
+.xp[data-state="active"] { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto auto 1fr; grid-template-areas: "task composer" "main composer" "main rail"; gap: 18px 22px; align-items: start; }
 .xp[data-state="active"] .xp-hero { display: none; }
-.xp[data-state="active"] .xp-taskline { order: 1; }
-.xp[data-state="active"] .xp-composer { order: 2; max-width: 380px; flex: none; animation: xp-settle 0.4s ease; }
+.xp[data-state="active"] .xp-taskline { grid-area: task; }
+.xp[data-state="active"] .xp-composer { grid-area: composer; max-width: none; animation: xp-settle 0.45s ease; }
+.xp[data-state="active"] .xp-main { grid-area: main; }
+.xp[data-state="active"] .xp-rail { grid-area: rail; position: sticky; top: 76px; }
 .xp[data-state="active"] .xp-box { border-radius: 16px; padding: 6px 6px 6px 14px; box-shadow: var(--shadow); }
 .xp[data-state="active"] .xp-box textarea { font-size: 0.95rem; padding: 8px 0; }
 .xp[data-state="active"] .xp-send { width: 38px; height: 38px; }
 .xp[data-state="active"] .xp-composer .examples { display: none; }
-@keyframes xp-settle { from { opacity: 0.5; transform: translateY(80px) scale(1.06); } to { opacity: 1; transform: none; } }
-.xp-taskline { flex: 1; min-width: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; background: rgba(255, 255, 255, 0.78); border: 1px solid var(--border); border-radius: 16px; padding: 12px 16px; box-shadow: var(--shadow); }
+@keyframes xp-settle { from { opacity: 0.4; transform: translate(-30vw, 38vh) scale(1.12); } to { opacity: 1; transform: none; } }
+.xp-taskline { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; background: rgba(255, 255, 255, 0.78); border: 1px solid var(--border); border-radius: 16px; padding: 12px 16px; box-shadow: var(--shadow); min-width: 0; }
 .xp-tasktext { margin-top: 4px; font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-
-.xp-work { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 22px; align-items: start; margin-bottom: 36px; }
-.xp-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; min-width: 0; }
-.xp-chat { position: sticky; top: 76px; min-width: 0; }
+.xp-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; min-width: 0; margin-bottom: 36px; }
 .xp-h { font-size: 1.1rem; margin-bottom: 10px; }
+
+/* Task status as a vertical list in the right rail */
+.xp-rail .card { padding: 18px; }
+.xp-rail .tracker { grid-template-columns: 1fr; margin-bottom: 14px; }
+.xp-rail .tracker li { flex-direction: row; align-items: center; gap: 12px; text-align: left; padding: 7px 0; }
+.xp-rail .tracker li::before { left: 16px; right: auto; top: -7px; width: 2px; height: 14px; }
+.xp-rail .tracker li:first-child::before { display: none; }
+.xp-rail .tracker .step-state { margin-left: auto; font-size: 0.76rem; }
+.xp-rail .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 /* Agents that worked on the task */
 .xp-agent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
@@ -128,7 +139,7 @@ body[data-route="explore"] .skeleton { background: linear-gradient(90deg, #f1edf
 .agent-card.preview .btn:disabled { opacity: 0.7; }
 
 /* ------- Beacon chat ------- */
-.bc { display: flex; flex-direction: column; height: min(78vh, 720px); background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; backdrop-filter: blur(8px); }
+.bc { display: flex; flex-direction: column; height: min(60vh, 520px); background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; backdrop-filter: blur(8px); }
 .bc-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
 .bc-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: #fff; display: inline-grid; place-items: center; font-weight: 700; }
 .bc-titles { flex: 1; min-width: 0; }
@@ -170,20 +181,31 @@ body[data-route="explore"] .skeleton { background: linear-gradient(90deg, #f1edf
 
 /* ------- Responsive ------- */
 @media (max-width: 1100px) {
-  .xp-work { grid-template-columns: minmax(0, 1fr); }
-  .xp-chat { position: static; order: -1; }
-  .bc { height: 520px; }
+  .xp[data-state="active"] { grid-template-columns: minmax(0, 1fr); grid-template-areas: "task" "composer" "rail" "main"; }
+  .xp[data-state="active"] .xp-rail { position: static; }
+  .xp-rail .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
-  .xp[data-state="active"] .xp-top { flex-direction: column; align-items: stretch; }
-  .xp[data-state="active"] .xp-composer { order: 0; max-width: none; }
-  .xp[data-state="active"] .xp-taskline { order: 1; }
-  .xp-top { min-height: 0; padding-top: 12px; }
+  .xp[data-state="idle"] { min-height: 0; padding-top: 12vh; }
+  .xp-rail .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .xp-composer, .xp-top, .xp-send { transition: none; animation: none !important; }
+  .xp-composer, .xp-send { transition: none; animation: none !important; }
   .bc-feed { scroll-behavior: auto; }
 }
 
-/* The status tiles wrap instead of overflowing the narrower workspace column. */
-.xp-main .stats { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); }
+/* ------- Sidebar: the same light theme on the Explore route ------- */
+body[data-route="explore"] .sidebar {
+  --bg: #ffffff; --surface: #ffffff; --surface-2: #f5f2fe; --surface-3: #ece7fc; --border: #e6e0f7; --border-strong: #d6cdf2;
+  --text: #1c1737; --muted: #5d5779; --faint: #7a7396; --accent-text: #5846ec; --accent-soft: rgba(106, 90, 249, 0.12);
+  --green: #15803d; --amber: #a14a08; --red: #b91c1c;
+  color-scheme: light; color: var(--text);
+  background: linear-gradient(180deg, #ffffff 0%, #f6f2fe 100%);
+  border-right-color: var(--border);
+}
+body[data-route="explore"] .sidebar .nav a[aria-current="page"] { color: var(--accent-text); border-color: rgba(106, 90, 249, 0.35); }
+body[data-route="explore"] .sidebar .btn-secondary { background: #fff; color: var(--text); border-color: var(--border-strong); }
+body[data-route="explore"] .sidebar .btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
+body[data-route="explore"] .sidebar .wallet-panel { background: var(--surface-2); }
+body[data-route="explore"] .sidebar .wp-addr code { background: #fff; color: var(--text); }
+body[data-route="explore"] .sidebar .badge-net { background: var(--accent-soft); color: var(--accent-text); }

@@ -23,58 +23,57 @@ let built = false, market, resultView, chat, task = null, taskText = '', stream 
 
 const HTML = `
   <div class="xp" id="xp" data-state="idle">
-    <div class="xp-top">
-      <div class="xp-hero"><h2 class="xp-title">Explore Agents</h2><p class="xp-sub">Give your Buyer Agent a task, or hire specialist agents for single calls.</p></div>
-      <div class="xp-taskline" id="xp-taskline" hidden><div><span class="eyebrow">Your task</span><p class="xp-tasktext" id="xp-tasktext"></p></div><span id="xp-taskstatus"></span></div>
-      <form id="task-form" class="xp-composer" novalidate aria-label="New task">
-        <label class="sr-only" for="task-input">Task description</label>
-        <div class="xp-box">
-          <textarea id="task-input" rows="1" maxlength="1000" placeholder="Give your Buyer Agent a task…" aria-describedby="task-error"></textarea>
-          <button id="run-btn" class="xp-send" type="submit" aria-label="Send task">${icon('send')}</button>
-        </div>
-        <div class="xp-meta"><span id="task-error" class="field-error" role="alert"></span><span id="task-count" class="count"></span></div>
-        <details class="xp-options" id="xp-options"><summary>Budget and options</summary>
-          <div class="xp-options-body">
-            <div class="form-row">
-              <div class="field"><label class="label" for="budget-input">Budget (USDC)</label>
-                <div class="input-affix"><input id="budget-input" class="input" type="text" inputmode="decimal" value="0.050" autocomplete="off" aria-describedby="budget-error"><span class="affix" aria-hidden="true">tUSDC</span></div>
-                <span id="budget-error" class="field-error" role="alert"></span></div>
-              <div class="field"><label class="label" for="conc-select">Max concurrency</label><select id="conc-select" class="select"><option value="1">1 call at a time</option><option value="3" selected>3 calls at once</option><option value="5">5 calls at once</option></select></div>
-            </div>
-            <p class="helper">${icon('shield', 'icon-sm')}<span>The budget is a <strong>hard spending cap</strong>. The agent reserves money before each payment and stops rather than exceed it. Testnet USDC only.</span></p>
-            <div id="hired-tray" class="hired-tray" hidden></div>
-            <details class="direct" id="direct"><summary>Direct URL mode (buy one URL with an expected price)</summary>
-              <div class="form-stack">
-                <div><label class="label" for="d-url">Seller URL</label><input id="d-url" class="input" placeholder="https://…"></div>
-                <div class="grid-2"><div><label class="label" for="d-price">Expected price (USDC)</label><input id="d-price" class="input" inputmode="decimal" placeholder="0.001"></div>
-                  <div><label class="label" for="d-cat">Category</label><select id="d-cat" class="select"><option value="data">Data</option><option value="inference">Inference</option><option value="scraping">Scraping</option></select></div></div>
-                <div><label class="label" for="d-payto">Expected payTo (optional)</label><input id="d-payto" class="input" placeholder="0x…"></div>
-                <p id="d-error" class="field-error" role="alert"></p>
-                <p class="muted">Every guard check still runs. Without a payTo, the payee cannot be compared with a listing, and the ledger says so.</p>
-              </div></details>
-          </div>
-        </details>
-        <div class="examples" role="group" aria-label="Example tasks"><span id="examples"></span></div>
-      </form>
-    </div>
+    <div class="xp-hero"><h2 class="xp-title">Explore Agents</h2><p class="xp-sub">Give your Buyer Agent a task, or hire specialist agents for single calls.</p></div>
+    <div class="xp-taskline" id="xp-taskline" hidden><div><span class="eyebrow">Your task</span><p class="xp-tasktext" id="xp-tasktext"></p></div><span id="xp-taskstatus"></span></div>
 
-    <div class="xp-work" id="xp-work" hidden>
-      <div class="xp-main">
-        <section class="card status-card" aria-labelledby="status-h">
-          <div class="card-head row-between"><h2 id="status-h">Task status</h2><span id="status-badge"></span></div>
-          <ol class="tracker" id="tracker" aria-label="Task progress"></ol>
-          <div id="status-banner" class="banner" role="status" aria-live="polite"></div>
-          <dl class="stats" id="stats"></dl>
-          <div class="meter" id="meter"></div>
-        </section>
-        <section class="xp-agents" id="agent-cards" aria-labelledby="agents-h" hidden></section>
-        <section class="card result-card" id="result-card" aria-labelledby="result-h" hidden>${resultCardHtml}</section>
-        <section class="card activity-card" aria-labelledby="activity-h"><div class="card-head"><h2 id="activity-h">Recent activity</h2></div><ol class="feed" id="feed"></ol></section>
+    <form id="task-form" class="xp-composer" novalidate aria-label="New task">
+      <label class="sr-only" for="task-input">Task description</label>
+      <div class="xp-box">
+        <textarea id="task-input" rows="1" maxlength="1000" placeholder="Give your Buyer Agent a task…" aria-describedby="task-error"></textarea>
+        <button id="run-btn" class="xp-send" type="submit" aria-label="Send task">${icon('send')}</button>
       </div>
+      <div class="xp-meta"><span id="task-error" class="field-error" role="alert"></span><span id="task-count" class="count"></span></div>
+      <details class="xp-options" id="xp-options" open><summary>Budget and options</summary>
+        <div class="xp-options-body">
+          <div class="form-row">
+            <div class="field"><label class="label" for="budget-input">Budget (USDC)</label>
+              <div class="input-affix"><input id="budget-input" class="input" type="text" inputmode="decimal" value="0.050" autocomplete="off" aria-describedby="budget-error"><span class="affix" aria-hidden="true">tUSDC</span></div>
+              <span id="budget-error" class="field-error" role="alert"></span></div>
+            <div class="field"><label class="label" for="conc-select">Max concurrency</label><select id="conc-select" class="select"><option value="1">1 call at a time</option><option value="3" selected>3 calls at once</option><option value="5">5 calls at once</option></select></div>
+          </div>
+          <p class="helper">${icon('shield', 'icon-sm')}<span>The budget is a <strong>hard spending cap</strong>. The agent reserves money before each payment and stops rather than exceed it. Testnet USDC only.</span></p>
+          <div id="hired-tray" class="hired-tray" hidden></div>
+          <details class="direct" id="direct"><summary>Direct URL mode (buy one URL with an expected price)</summary>
+            <div class="form-stack">
+              <div><label class="label" for="d-url">Seller URL</label><input id="d-url" class="input" placeholder="https://…"></div>
+              <div class="grid-2"><div><label class="label" for="d-price">Expected price (USDC)</label><input id="d-price" class="input" inputmode="decimal" placeholder="0.001"></div>
+                <div><label class="label" for="d-cat">Category</label><select id="d-cat" class="select"><option value="data">Data</option><option value="inference">Inference</option><option value="scraping">Scraping</option></select></div></div>
+              <div><label class="label" for="d-payto">Expected payTo (optional)</label><input id="d-payto" class="input" placeholder="0x…"></div>
+              <p id="d-error" class="field-error" role="alert"></p>
+              <p class="muted">Every guard check still runs. Without a payTo, the payee cannot be compared with a listing, and the ledger says so.</p>
+            </div></details>
+        </div>
+      </details>
+      <div class="examples" role="group" aria-label="Example tasks"><span id="examples"></span></div>
+    </form>
+
+    <div class="xp-main" id="xp-main" hidden>
       <aside class="xp-chat" id="chat-mount" aria-label="Beacon chat"></aside>
+      <section class="xp-agents" id="agent-cards" aria-labelledby="agents-h" hidden></section>
+      <section class="card result-card" id="result-card" aria-labelledby="result-h" hidden>${resultCardHtml}</section>
+      <section class="card activity-card" aria-labelledby="activity-h"><div class="card-head"><h2 id="activity-h">Recent activity</h2></div><ol class="feed" id="feed"></ol></section>
+      <section class="market" id="market" aria-labelledby="market-h"></section>
     </div>
 
-    <section class="market" id="market" aria-labelledby="market-h"></section>
+    <aside class="xp-rail" id="xp-rail" hidden aria-label="Task status">
+      <section class="card status-card" aria-labelledby="status-h">
+        <div class="card-head row-between"><h2 id="status-h">Task status</h2><span id="status-badge"></span></div>
+        <ol class="tracker" id="tracker" aria-label="Task progress"></ol>
+        <div id="status-banner" class="banner" role="status" aria-live="polite"></div>
+        <dl class="stats" id="stats"></dl>
+        <div class="meter" id="meter"></div>
+      </section>
+    </aside>
   </div>`;
 
 function schedule(fn) { cancelAnimationFrame(raf); raf = requestAnimationFrame(fn); }
@@ -176,7 +175,8 @@ function renderAll(root) {
   resultView.render();
   const active = !!task;
   $('#xp', root).dataset.state = active ? 'active' : 'idle';
-  $('#xp-work', root).hidden = !active;
+  $('#xp-main', root).hidden = !active;
+  $('#xp-rail', root).hidden = !active;
   $('#xp-taskline', root).hidden = !active;
   $('#xp-tasktext', root).textContent = taskText || (task ? 'Task in progress' : '');
 }
@@ -188,6 +188,7 @@ function attach(root, id) {
   const q = new URLSearchParams(location.search); q.set('task', id);
   history.replaceState(null, '', `?${q.toString()}${location.hash || '#explore'}`);
   resultView.reset();
+  $('#xp-options', root).open = false; // once the agent is working the options step aside
   chat.setTask(id);
   refreshServices(root);
   clearInterval(timer);
@@ -267,7 +268,7 @@ async function run(root) {
     input.value = ''; autosize(input); $('#task-count', root).textContent = '';
     $('#xp-options', root).open = false;
     attach(root, taskId);
-    $('#xp-work', root).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (e) {
     btn.disabled = false;
     const issue = e instanceof ApiError ? e.body?.issues?.[0] : null;
