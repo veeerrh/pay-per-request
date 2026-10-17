@@ -219,12 +219,21 @@ function createServer(deps) {
 }
 
 /** Registry listings as typed seller listings (typed fields only, M-12). Held listings are not used (M-05). */
+const LOCAL_PORTS = { atlas: 4011, tremor: 4012, brief: 4013, overquote: 4021, redirect: 4022, hollow: 4023, offline: 4024 };
+
+/** When the listing points at our own public URL, Beacon calls the seller over loopback instead of going out through the tunnel. */
+function localize(endpoint, id) {
+  const pub = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
+  if (pub && process.env.BEACON_LOCAL_ROUTES !== 'false' && LOCAL_PORTS[id] && endpoint.startsWith(`${pub}/${id}/`)) return `http://127.0.0.1:${LOCAL_PORTS[id]}${endpoint.slice(`${pub}/${id}`.length)}`;
+  return endpoint;
+}
+
 function registryListings(registryUrl) {
   return async () => {
     const r = await fetch(`${registryUrl}/services`, { signal: AbortSignal.timeout(8000) });
     if (!r.ok) throw new Error(`registry answered ${r.status}`);
     return (await r.json()).filter((s) => ['active', 'flagged'].includes(s.status)).map((s) => ({
-      id: s.id, name: s.name, category: s.category, price: BigInt(s.price), payTo: s.payTo, endpoint: s.endpoint, method: s.method, listingHash: s.listingHash, outputSchema: s.outputSchema, labels: s.labels,
+      id: s.id, name: s.name, category: s.category, price: BigInt(s.price), payTo: s.payTo, endpoint: localize(s.endpoint, s.id), method: s.method, listingHash: s.listingHash, outputSchema: s.outputSchema, labels: s.labels,
     }));
   };
 }

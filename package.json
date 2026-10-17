@@ -17,7 +17,10 @@
     "start:sellers": "node scripts/start-all.js --sellers",
     "task": "node packages/buyer/src/cli.js",
     "scan": "node scripts/write-hygiene.js",
-    "scan:bundle": "node scripts/bundle-scan.js"
+    "scan:bundle": "node scripts/bundle-scan.js",
+    "start:public": "node scripts/start-all.js --public",
+    "tunnel": "node scripts/tunnel.js",
+    "health": "node scripts/health.js"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",

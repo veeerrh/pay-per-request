@@ -8,6 +8,15 @@ const { SERVICES, buildEnv, ROOT } = require('./lib/services');
 
 const only = process.argv.includes('--sellers') ? new Set(SERVICES.filter((s) => /^(atlas|tremor|brief|overquote|redirect|hollow|offline)$/.test(s.name)).map((s) => s.name)) : null;
 
+// --public: demo mode for the judging run. Needs PUBLIC_BASE_URL (the tunnel URL) and refuses private endpoints (D-29).
+const PUBLIC = process.argv.includes('--public');
+if (PUBLIC) {
+  process.env.DEMO_MODE = 'true';
+  process.env.ALLOW_PRIVATE_ENDPOINTS = 'false';
+  if (!/^https:\/\/[^/]+$/.test((process.env.PUBLIC_BASE_URL || '').replace(/\/$/, ''))) { console.error('REFUSING TO START: set PUBLIC_BASE_URL to the https tunnel URL first (npm run tunnel).'); process.exit(1); }
+  process.env.PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL.replace(/\/$/, '');
+}
+
 // Startup network guard: refuse to run if anything is not Base Sepolia (M-40, S-56).
 const NET = { NETWORK: process.env.NETWORK || 'eip155:84532', CHAIN_ID: process.env.CHAIN_ID || '84532' };
 if (NET.NETWORK !== 'eip155:84532' || NET.CHAIN_ID !== '84532') { console.error('REFUSING TO START: not Base Sepolia'); process.exit(1); }
