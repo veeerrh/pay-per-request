@@ -9,7 +9,7 @@ import { mountMarket } from './market.js';
 import { mountResult, resultCardHtml } from './result.js';
 import { mountBeaconChat } from './beacon-chat.js';
 import { thumb } from '../thumbs.js';
-import { $, $$, esc, icon, formatUsdc, toUnits, fmtTime, fmtElapsed, setWidth, CAT_ICON, CAT_LABEL } from '../ui.js';
+import { $, $$, esc, icon, formatUsdc, toUnits, fmtTime, fmtElapsed, setWidth, explorerUrl, shortHash, CAT_ICON, CAT_LABEL } from '../ui.js';
 
 const MAX_BUDGET = 5_000_000n;
 const FEED = {
@@ -43,6 +43,12 @@ const HTML = `
             <div class="field"><label class="label" for="conc-select">Max concurrency</label><select id="conc-select" class="select"><option value="1">1 call at a time</option><option value="3" selected>3 calls at once</option><option value="5">5 calls at once</option></select></div>
           </div>
           <p class="helper">${icon('shield', 'icon-sm')}<span>The budget is a <strong>hard spending cap</strong>. The agent reserves money before each payment and stops rather than exceed it. Testnet USDC only.</span></p>
+          <div class="field-row-opt">
+            <div class="field"><label class="label" for="approve-input">Ask me before any call above (USDC)</label>
+              <div class="input-affix"><input id="approve-input" class="input" type="text" inputmode="decimal" placeholder="off" autocomplete="off" aria-describedby="approve-help"><span class="affix" aria-hidden="true">tUSDC</span></div>
+              <span id="approve-help" class="helper-sm">Optional. Calls priced above this wait for your yes; no answer in 2 minutes counts as no.</span></div>
+            <label class="check"><input type="checkbox" id="chain-input"><span><strong>Agent chain</strong><small>Hire Relay, which buys the earthquake data from Tremor itself with its own wallet.</small></span></label>
+          </div>
           <div id="hired-tray" class="hired-tray" hidden></div>
         </div>
       </details>
@@ -50,6 +56,7 @@ const HTML = `
     </form>
 
     <div class="xp-main" id="xp-main" hidden>
+      <section class="card xp-approvals" id="xp-approvals" hidden aria-live="polite" aria-label="Approvals"></section>
       <aside class="xp-chat" id="chat-mount" aria-label="Beacon chat"></aside>
       <section class="xp-agents" id="agent-cards" aria-labelledby="agents-h" hidden></section>
       <section class="card result-card" id="result-card" aria-labelledby="result-h" hidden>${resultCardHtml}</section>
@@ -85,6 +92,7 @@ function renderStatus(root) {
   let b;
   if (!t) b = ['', 'info', 'Ready when you are', 'Describe a task above and press send. Nothing is spent until you do.'];
   else if (streamState === 'reconnecting' && t.status === 'running') b = ['warn', 'clock', 'Reconnecting to Beacon…', 'The task keeps running. Updates resume when the connection returns.'];
+  else if (t.status === 'running' && [...t.approvals.values()].some((a) => a.status === 'pending')) b = ['warn', 'alert', 'Waiting for your approval', 'A call above your limit is paused until you answer. Nothing is reserved or signed meanwhile.'];
   else if (t.status === 'running') b = ['run', 'clock', `Working: ${STAGES[Math.max(t.stageIdx, 0)]} stage`, t.events[0]?.text || 'Starting…'];
   else if (t.status === 'completed') b = ['ok', 'checkcircle', 'Task completed', `Spent ${formatUsdc(t.spent)} of ${formatUsdc(t.budget)} test USDC. The result is shown below.`];
   else if (t.status === 'stopped') b = ['warn', 'alert', 'Task stopped early', t.notice || 'The task stopped before every step finished.'];
@@ -146,14 +154,40 @@ function renderAgents(root) {
     const notes = t.notes.filter((n) => n.agent === c.name);
     const rep = svc?.reputation;
     return `<article class="xp-agent">
-      <div class="xp-agent-thumb">${thumb(c.name, c.category)}</div>
+      <div class="xp-agent-thumb">${thumb(c.id === 'relay' ? 'relay' : c.name, c.category)}</div>
       <div class="xp-agent-head"><div><h3>${esc(c.name)}</h3><span class="muted">${esc(CAT_LABEL[c.category] || c.category)}</span></div><span class="badge ${state[1]}">${state[0]}</span></div>
       <dl class="xp-agent-facts"><div><dt>Price</dt><dd>${svc ? `${formatUsdc(svc.price)} USDC` : '–'}</dd></div><div><dt>Reputation</dt><dd>${rep ? Number(rep.score).toFixed(2) : '–'}</dd></div></dl>
       ${c.reason ? `<p class="xp-why"><strong>Why Beacon chose it</strong>${esc(c.reason)}</p>` : ''}
       ${notes.length ? `<div class="xp-notes"><strong>What it added</strong><ul>${notes.slice(0, 6).map((n) => `<li>${esc(n.text)}</li>`).join('')}</ul></div>` : ''}
+      ${c.id === 'relay' && t.chainHires.length ? `<div class="xp-notes xp-chain"><strong>What Relay bought, with its own wallet</strong><ul>${t.chainHires.map((h) => { const u = explorerUrl(h.txHash); return `<li>${esc(h.seller)} for ${esc(h.country)}: ${formatUsdc(h.paidUnits)} USDC${u ? ` <a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(shortHash(h.txHash))}</a>` : ''}</li>`; }).join('')}</ul></div>` : ''}
       ${tag ? `<div class="badges">${tag}</div>` : ''}
     </article>`;
   }).join('')}</div>`;
+}
+
+function renderApprovals(root) {
+  const box = $('#xp-approvals', root);
+  const list = task ? [...task.approvals.values()] : [];
+  if (!list.length) { box.hidden = true; box.innerHTML = ''; return; }
+  box.hidden = false;
+  const label = { approved: ['badge-green', 'Approved'], declined: ['badge-amber', 'Declined'], expired: ['badge-amber', 'No answer, declined'] };
+  box.innerHTML = `<div class="card-head"><h2>Needs your approval</h2></div><ul class="xp-appr-list">${list.map((a) => {
+    const price = formatUsdc(a.priceUnits), lim = formatUsdc(a.thresholdUnits);
+    return a.status === 'pending'
+      ? `<li class="pending" data-appr="${esc(a.approvalId)}"><div><strong>${esc(a.seller)}</strong> <span class="muted">(${esc(CAT_LABEL[a.category] || a.category)})</span> costs up to <strong>${price} USDC</strong> per call, above your limit of ${lim} USDC.
+          <div class="muted">Beacon waits for you. Nothing is reserved or signed until you approve. <span class="countdown" data-expires="${esc(a.expiresAt || '')}"></span></div></div>
+          <div class="btn-row"><button type="button" class="btn btn-primary btn-sm" data-decide="approve" data-appr-id="${esc(a.approvalId)}">${icon('check')}Approve</button><button type="button" class="btn btn-secondary btn-sm" data-decide="decline" data-appr-id="${esc(a.approvalId)}">${icon('x')}Decline</button></div></li>`
+      : `<li><div><strong>${esc(a.seller)}</strong> up to ${price} USDC, limit ${lim} USDC</div><span class="badge ${(label[a.status] || ['', a.status])[0]}">${esc((label[a.status] || ['', a.status])[1])}</span></li>`;
+  }).join('')}</ul>`;
+}
+
+function tickApprovals(root) {
+  $$('.countdown', root).forEach((el) => {
+    const t = Date.parse(el.dataset.expires);
+    if (!Number.isFinite(t)) { el.textContent = ''; return; }
+    const s = Math.max(0, Math.round((t - Date.now()) / 1000));
+    el.textContent = s > 0 ? `Declines automatically in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}.` : 'Time is up.';
+  });
 }
 
 function renderHired(root) {
@@ -164,7 +198,7 @@ function renderHired(root) {
 }
 
 function renderAll(root) {
-  renderStatus(root); renderFeed(root); renderAgents(root);
+  renderStatus(root); renderFeed(root); renderAgents(root); renderApprovals(root); tickApprovals(root);
   resultView.render();
   const active = !!task;
   $('#xp', root).dataset.state = active ? 'active' : 'idle';
@@ -185,7 +219,7 @@ function attach(root, id) {
   chat.setTask(id);
   refreshServices(root);
   clearInterval(timer);
-  timer = setInterval(() => { const el = $('#stat-elapsed', root); if (el && task) el.textContent = fmtElapsed(elapsedMs(task)); }, 250);
+  timer = setInterval(() => { const el = $('#stat-elapsed', root); if (el && task) el.textContent = fmtElapsed(elapsedMs(task)); tickApprovals(root); }, 250);
   stream = openTaskEvents(id, (ev) => {
     applyEvent(task, ev);
     schedule(() => renderAll(root));
@@ -226,11 +260,18 @@ function collect(root) {
   else if (units <= 0n) bErr = 'Budget must be greater than 0.';
   else if (units > MAX_BUDGET) bErr = `Demo limit is ${formatUsdc(MAX_BUDGET)} USDC per task.`;
   else if (app.wallet?.usdcBalance != null && units > BigInt(app.wallet.usdcBalance)) bErr = `Budget is more than your test balance (${formatUsdc(app.wallet.usdcBalance)}). Use the Faucet.`;
+  let approveUnits = null;
+  const aStr = $('#approve-input', root).value.trim();
+  if (aStr) {
+    approveUnits = toUnits(aStr);
+    if (approveUnits === null || approveUnits <= 0n) bErr = bErr || 'The approval limit must be a number such as 0.008, or empty for off.';
+    else if (approveUnits > 100000n) bErr = bErr || 'The approval limit cannot be above 0.100 USDC (the price cap).';
+  }
   setErr(root, '#task-input', '#task-error', tErr); setErr(root, '#budget-input', '#budget-error', bErr);
   const opts = $('#xp-options', root);
   if (tErr) { $('#task-input', root).focus(); return null; }
   if (bErr) { opts.open = true; $('#budget-input', root).focus(); return null; }
-  return { text, budget: String(units), maxConcurrency: Number($('#conc-select', root).value), hired: [...app.hired] };
+  return { text, budget: String(units), maxConcurrency: Number($('#conc-select', root).value), hired: [...app.hired], ...(approveUnits ? { approveAbove: String(approveUnits) } : {}), ...($('#chain-input', root).checked ? { chain: true } : {}) };
 }
 
 async function run(root) {
@@ -277,6 +318,11 @@ function build(root) {
   root.addEventListener('click', (e) => {
     const ex = e.target.closest('[data-example]');
     if (ex) { const t = examples[Number(ex.dataset.example)]; input.value = t.text; $('#budget-input', root).value = t.budget; $('#conc-select', root).value = String(t.maxConcurrency); count(); autosize(input); input.focus(); }
+    const dec = e.target.closest('[data-decide]');
+    if (dec && task) {
+      dec.disabled = true;
+      api.approve(task.id, dec.dataset.apprId, dec.dataset.decide).catch((err) => setErr(root, null, '#task-error', err.status === 409 ? 'That request was already answered or has expired.' : err.message));
+    }
     const un = e.target.closest('[data-unhire]'); if (un) app.setHired(un.dataset.unhire, false);
     if (e.target.closest('[data-clear-hired]')) app.clearHired();
   });

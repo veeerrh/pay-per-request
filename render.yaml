@@ -34,6 +34,10 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: RELAY_PRIVATE_KEY
+        sync: false
+      - key: RELAY_GEMINI_API_KEY
+        sync: false
       - key: ATLAS_GEMINI_API_KEY
         sync: false
       - key: TREMOR_GEMINI_API_KEY

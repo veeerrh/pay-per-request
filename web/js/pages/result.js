@@ -1,5 +1,5 @@
 // Result panel: Final Result, Service Breakdown, Raw Outputs (Appendix B result shape).
-import { esc, icon, formatUsdc, statusBadge, codePanel, CAT_ICON, wireTabs, bulletsHtml, $, $$ } from '../ui.js';
+import { esc, icon, formatUsdc, statusBadge, codePanel, CAT_ICON, wireTabs, bulletsHtml, explorerUrl, shortHash, $, $$ } from '../ui.js';
 
 export function mountResult(card, getTask) {
   let tab = 'final';
@@ -17,6 +17,7 @@ export function mountResult(card, getTask) {
       const rep = r.beaconSummary?.text ? `<div class="result-section beacon-report"><div class="eyebrow">Summary${r.beaconSummary.source === 'model' ? ' · AI-written' : ' · rule-based'}</div>${bulletsHtml(r.beaconSummary.text)}</div>` : '';
       panel.innerHTML = `${rep}
         <div class="result-hero l-${esc(a.level)}">${icon(a.level === 'low' ? 'checkcircle' : 'alert')}<div><div class="eyebrow">Overall assessment</div><h3>${esc(a.title)}</h3><p class="muted">${esc(a.summary)}</p></div></div>
+        ${r.chain ? `<div class="result-section"><h3>Agent chain</h3><p class="muted">You paid ${esc(r.chain.agent)}; ${esc(r.chain.agent)} then paid ${formatUsdc(r.chain.spentUnits)} USDC to the agents it hired, from its own wallet. This is ${esc(r.chain.agent)}'s own account of its purchases; each transaction is on the chain.</p><ul class="bullets">${r.chain.hired.map((h) => { const u = explorerUrl(h.txHash); return `<li>${esc(h.seller)} for ${esc(h.country)}: ${formatUsdc(h.paidUnits)} USDC${u ? ` <a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(shortHash(h.txHash))}</a>` : ''}</li>`; }).join('')}</ul></div>` : ''}
         <div class="result-section"><h3>Key evidence</h3>${r.evidence?.length ? `<ul class="bullets">${r.evidence.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>` : '<p class="muted">No validated evidence was collected.</p>'}</div>
         <div class="result-section"><h3>Sources used</h3>${r.sources?.length ? `<ul class="bullets">${r.sources.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>` : '<p class="muted">None.</p>'}</div>
         <div class="result-section"><h3>Important uncertainty</h3><p class="note">${icon('alert', 'icon-sm')} ${esc(r.uncertainty)}</p></div>

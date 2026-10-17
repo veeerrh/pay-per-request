@@ -37,6 +37,8 @@ function chips(s) {
   if (s.inputSchema && s.outputSchema) out.push(`<span class="badge badge-green">${icon('check')}Schema listed</span>`);
   if (s.probe?.matches === true) out.push(`<span class="badge badge-green">${icon('check')}Probe matched</span>`);
   if (s.probe?.matches === false) out.push(`<span class="badge badge-red">${icon('alert')}Probe mismatch</span>`);
+  if (s.labels?.includes('chain')) out.push(`<span class="badge badge-accent">${icon('link')}Agent chain</span>`);
+  if (s.labels?.includes('metered')) out.push(`<span class="badge">Metered</span>`);
   if (s.labels?.includes('test-vendor')) out.push(`<span class="badge badge-amber">${icon('alert')}Test vendor</span>`);
   if (r.status === 'dropped') out.push(`<span class="badge badge-red">Dropped</span>`);
   else if (r.status === 'probation') out.push(`<span class="badge">Probation</span>`);
@@ -63,7 +65,7 @@ function card(s) {
       </dl>
     </div>
     <div class="agent-foot">
-      <div class="price"><small>Per call</small><strong>${formatUsdc(s.price)}</strong> <span>USDC</span></div>
+      <div class="price"><small>${s.labels?.includes('metered') ? 'Per call, up to' : 'Per call'}</small><strong>${formatUsdc(s.price)}</strong> <span>USDC</span></div>
       <div class="foot-actions">
         <button type="button" class="btn btn-secondary btn-sm" data-view="${esc(s.id)}">View Details</button>
         <button type="button" class="btn ${hired ? 'btn-secondary' : 'btn-primary'} btn-sm" data-hire="${esc(s.id)}" aria-pressed="${hired}">${hired ? icon('check') + 'Hired' : 'Hire Agent'}</button>

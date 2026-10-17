@@ -35,6 +35,8 @@ if (!/^https:\/\/[^/]+$/.test(BASE)) { console.error('REFUSING TO START: set PUB
 process.env.PUBLIC_BASE_URL = BASE;
 const PORT = Number(process.env.PORT || 10000);
 const BEACON_PORT = 4100;
+const RELAY_PORT = 4014;
+const RELAY = FULL && !!secrets.RELAY_PRIVATE_KEY; // the agent chain runs only when it has its own wallet key
 
 fs.mkdirSync(path.join(ROOT, 'data'), { recursive: true });
 const { createRegistry } = require('../packages/registry/src/server');
@@ -56,13 +58,13 @@ host.disable('x-powered-by');
 host.set('trust proxy', 1); // Render terminates TLS; the seller sees the original https host
 const startedAt = Date.now();
 let beaconUp = false;
-host.get('/gateway/health', (_req, res) => res.json({ ok: true, mode: FULL ? 'full' : 'sellers-only', routes: Object.keys(MOUNTS), ...(FULL ? { beacon: beaconUp } : {}), uptimeSeconds: Math.round((Date.now() - startedAt) / 1000) }));
+host.get('/gateway/health', (_req, res) => res.json({ ok: true, mode: FULL ? 'full' : 'sellers-only', routes: Object.keys(MOUNTS), ...(FULL ? { beacon: beaconUp, relay: RELAY ? relayUp : 'off' } : {}), uptimeSeconds: Math.round((Date.now() - startedAt) / 1000) }));
 for (const [prefix, app] of Object.entries(MOUNTS)) host.use(`/${prefix}`, app);
 
 if (FULL) {
   // Everything that is not a seller or the registry goes to Beacon (dashboard, /api, live events), through the same proxy as the local gateway.
   const { createGateway } = require('../packages/gateway/src/gateway');
-  const toBeacon = createGateway({ routes: {}, beacon: BEACON_PORT });
+  const toBeacon = createGateway({ routes: RELAY ? { relay: RELAY_PORT } : {}, beacon: BEACON_PORT });
   host.use((req, res) => toBeacon(req, res));
 } else {
   host.get('/', (_req, res) => res.type('html').send(`<!doctype html><meta charset="utf-8"><title>AgentMarket public host</title><h1>AgentMarket: registry and sellers</h1><p>Testnet only (Base Sepolia).</p><ul><li><a href="/registry/">Registry</a> (<a href="/registry/services">JSON</a>)</li><li><a href="/gateway/health">Health</a></li></ul>`));
@@ -76,6 +78,7 @@ const server = host.listen(PORT, '0.0.0.0', () => {
     // The Fraud Lab's lab-only vendor stays private: loopback only, never routed through the public URL.
     require('../packages/sellers/src/fixtures/shapeshifter').app.listen(4025, '127.0.0.1');
     startBeacon(0);
+    if (RELAY) startRelay(0);
   }
   seed(1);
 });
@@ -98,10 +101,26 @@ function startBeacon(restarts) {
   process.on('exit', () => { try { child.kill(); } catch { /* already gone */ } });
 }
 
+/** Relay, the chained agent, as its own child process with its own wallet key. It never shares a process with the other sellers or with Beacon. */
+let relayUp = false;
+function startRelay(restarts) {
+  const { SERVICES, buildEnv } = require('./lib/services');
+  const svc = SERVICES.find((s) => s.name === 'relay');
+  const env = buildEnv({ ...svc, env: { PORT: String(RELAY_PORT) } }, { ...process.env, ...secrets, REGISTRY_URL: `http://127.0.0.1:${PORT}/registry` });
+  const child = spawn(process.execPath, [path.join(ROOT, svc.script)], { cwd: ROOT, env, stdio: 'inherit' });
+  const probe = setInterval(async () => { try { relayUp = (await fetch(`http://127.0.0.1:${RELAY_PORT}/health`)).ok; } catch { relayUp = false; } }, 3000);
+  child.on('exit', (code) => {
+    clearInterval(probe); relayUp = false;
+    console.error(`Relay exited (${code})`);
+    if (!stopping && restarts < 5) setTimeout(() => startRelay(restarts + 1), 3000);
+  });
+  process.on('exit', () => { try { child.kill(); } catch { /* already gone */ } });
+}
+
 /** Registers the listings with the public URL. Idempotent; retried because the public URL needs a moment before the probe can reach it. */
 function seed(attempt) {
   setTimeout(() => {
-    const child = spawn(process.execPath, [path.join(ROOT, 'scripts', 'seed-registry.js'), `http://127.0.0.1:${PORT}/registry`, BASE], { cwd: ROOT, stdio: 'inherit' });
+    const child = spawn(process.execPath, [path.join(ROOT, 'scripts', 'seed-registry.js'), `http://127.0.0.1:${PORT}/registry`, BASE], { cwd: ROOT, stdio: 'inherit', env: { ...process.env, SKIP_LISTINGS: RELAY ? '' : 'relay' } });
     child.on('exit', (code) => { if (code !== 0 && attempt < 4) seed(attempt + 1); else console.log(code === 0 ? 'registry seeded' : 'registry seeding failed; restart to retry'); });
   }, attempt === 1 ? 4000 : 8000);
 }

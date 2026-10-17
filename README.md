@@ -28,7 +28,7 @@ Open <http://localhost:4100> (or everything through one door at <http://localhos
 
 | # | Task | Budget | Honest cost |
 | --- | --- | --- | --- |
-| 1 | The 3 most populous countries, earthquakes of magnitude 4.5 or more in the last 7 days, a readiness brief for each | 0.050 | 31,000 units |
+| 1 | The 3 most populous countries, earthquakes of magnitude 4.5 or more in the last 7 days, a readiness brief for each | 0.050 | 27,000 units (Brief is metered: 0.010 for two countries, 0.006 for one) |
 | 2 | The 4 largest countries by area, magnitude 5.0 or more in the last 14 days, a brief for each | 0.060 | 33,000 units |
 | 3 | The 2 most populous countries, magnitude 4.0 or more in the last 30 days, a brief for each | 0.030 | 19,000 units |
 
@@ -72,10 +72,20 @@ Evidence from live runs (BaseScan links, reconcile output) is in `docs/evidence/
 - **Evidence over trust.** Every attempt, including refusals, is a hash-chained ledger row. Reputation is computed from the ledger and cannot be edited.
 - **Keys.** Only `signer.ts` reads a private key. Sellers hold receiving addresses only. Logs are redacted and scanned. No key is in the repository, history, web bundle or logs (`npm run scan`).
 
+## Stretch goals built
+
+| Goal | What exists | Where to see it |
+| --- | --- | --- |
+| **Human approval above a threshold** (M-23, M-57) | Optional per task. A call listed above your limit waits **before** the guard is asked to sign or reserve anything; approve or decline in the dashboard; no answer in 2 minutes counts as a decline. A decline skips that seller only (the step falls back to a cheaper eligible seller). | Explore, "Ask me before any call above"; `POST /api/tasks/:id/approvals/:approvalId` |
+| **Metered pricing** | Brief charges per country: 0.006 USDC for one, 0.010 for two. The listed price is a ceiling; the 402 asks for the metered amount; a payment signed for one country cannot buy a two-country brief. Metering is by input size (countries), not by model tokens, because the exact scheme needs the price before the work. | Market card "Per call, up to"; Ledger rows (listed 0.010, asked 0.006) |
+| **Agent chain** | **Relay** (inference) is paid once by the buyer, then buys the earthquake data from Tremor itself, with its own wallet, through the same payment guard (price, payee, token, network, schema, budget, hash-chained ledger). Opt-in per task ("Agent chain"). Relay is the only seller that holds a key; it needs a small working float (it is paid only after it delivers). | Explore, "Agent chain"; `GET /relay/payments` (Relay's wallet and what it paid) |
+
+Not built: paid MCP tools or A2A, Bazaar discovery, escrow or refunds, a second network.
+
 ## Known limits (be honest)
 
 - Not protected: a compromised facilitator wallet or chain, a fully compromised machine holding Beacon's key, and the quality of seller content beyond schema and sanity checks.
 - The public x402.org facilitator's settlement time varies from about 2 seconds to over a minute. The buyer holds such calls as pending and recovers them from the chain instead of guessing.
-- Signed listings and the human-approval gate are not built. Stretch goals (agent chain, Bazaar listing) are not built.
+- Signed listings are not built. Stretch goals not built: Bazaar listing, MCP or A2A, escrow, a second network. Relay pays Tremor from its own float: if Tremor fails after being paid for one country, Relay absorbs that cost (the buyer is not charged).
 - Earthquake regions are approximated by a centre point and radius per country. Brief's readiness level comes from fixed thresholds on event count and strongest magnitude; the model only writes the wording.
 - Model text is checked for invented numbers, not for every kind of wrong statement. Free-tier Gemini limits apply, and prompts on the free tier may be used by Google to improve its products, so only test data goes in.

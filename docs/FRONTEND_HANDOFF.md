@@ -55,6 +55,12 @@ Beacon tries each scripted suspect one at a time and explains in its chat what w
 - Honest limits are part of the demo: a paid-then-junk seller is capped and flagged, not refunded. The Ghost's 0.008 USDC is the one real loss in a full run.
 - The older single-case endpoints (`GET /api/attack`, `POST /api/attack/:case`) still exist; the lab replaces them for the page. Enabled when `GET /api/config` `attackPanel` is true.
 
+### Stretch goals (approval, metering, agent chain)
+- **Approval:** `POST /api/tasks` accepts `approveAbove` (USDC units as a digit string, 1 to 100000; optional). A call whose listed price is above it pauses **before** anything is reserved or signed. Events: `approval` with `approvalId` (not `id`, that is the event counter), `status` = `pending | approved | declined | expired`, `seller, sellerId, category, priceUnits, thresholdUnits`, and `expiresAt` on `pending`. Answer with `POST /api/tasks/:id/approvals/:approvalId` body `{ "decision": "approve" | "decline" }` (409 if already answered or expired). One question per seller per task. No answer in `GET /api/config` `approvalTimeoutSeconds` (120) counts as a decline. Chat kinds used: `pending` (waiting), `refused` (not approved), `info` (approved).
+- **Metered pricing:** a listing `price` is a ceiling when `labels` contains `metered`. Show "up to". The ledger row has `listed` (ceiling), `asked` and `paid` (the metered amount).
+- **Agent chain:** `POST /api/tasks` accepts `chain: true`. Beacon then buys only scraping (Atlas) and inference (Relay); Relay buys the data itself. New event `chain` (`agent, seller, country, paidUnits, txHash`) per purchase Relay reports; the final `result.chain` is `{ agent, hired[], spentUnits }`. This is Relay's own account of its purchases, labelled as such, each with an explorer link. Listings with `labels` containing `chain` are the chained agent; it is never a candidate unless `chain: true`.
+- Relay's wallet and recent payments: `GET /relay/payments` (read-only).
+
 ## 3. Limits and edge cases to design for
 - **Chat limit:** 12 messages per minute; **tasks:** 6 per minute; show a friendly message on HTTP 429.
 - **Model can be out of quota:** replies still work (`source: "rules"`). Do not treat that as an error.

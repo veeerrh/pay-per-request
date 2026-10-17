@@ -36,6 +36,7 @@ const live = {
   tasks: () => call('GET', '/api/tasks'),
   task: (id) => call('GET', `/api/tasks/${encodeURIComponent(id)}`),
   createTask: (body) => call('POST', '/api/tasks', body),
+  approve: (taskId, approvalId, decision) => call('POST', `/api/tasks/${encodeURIComponent(taskId)}/approvals/${encodeURIComponent(approvalId)}`, { decision }),
   taskChat: (id) => call('GET', `/api/tasks/${encodeURIComponent(id)}/chat`),
   chat: (body) => call('POST', '/api/chat', body),
   ledger: () => call('GET', '/api/ledger'),

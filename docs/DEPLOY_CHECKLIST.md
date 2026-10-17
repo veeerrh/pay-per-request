@@ -13,6 +13,15 @@ Status: **Ready** = done and verified here. **After deploy** = can only be prove
 | Scraping only sites that allow it | Ready | Atlas checks robots.txt and scrapes the scrapethissite sandbox. |
 | Judged tests run over x402 v2 on Base Sepolia, one transfer per paid request | Ready | x402 v2 SDK in every seller; verified on chain in the judged-test run (`docs/evidence/JUDGED_TESTS.md`, 9 of 9). |
 
+## Stretch goals (extra credit)
+
+| Stretch goal | Status | Evidence |
+| --- | --- | --- |
+| Spending policies with human approval above a threshold | Ready | `packages/buyer/test/approval.test.js` (9 tests); live approve run on the local stack |
+| Metered pricing for inference | Ready | `packages/sellers/test/metered.test.js` (4 tests), ledger rows show listed 0.010, asked 0.006 |
+| Agent chain (a seller hires sellers and pays them from what it earns) | After deploy and funding | `packages/buyer/test/chain.test.js`, `packages/sellers/test/relay.test.js`; the live paid chain run needs Relay's wallet funded (see `docs/DEPLOY_RENDER.md`) |
+| Bazaar, MCP/A2A, escrow, second network | Not built | listed in the README |
+
 ## Deliverables
 
 | Deliverable | Status | Where |

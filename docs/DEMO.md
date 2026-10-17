@@ -12,6 +12,12 @@ Open in separate tabs before you start: the dashboard, the ledger page, BaseScan
 | 4:00 to 4:30 | **Reputation page.** Run task 1 again: the fraud agents are skipped | "Reputation is computed from the ledger. Nobody can edit it." | P-11, M-44 to M-50 |
 | 4:30 to 5:00 | Settings: the green key-hygiene badge and the rule-set hash. Mention the reference buyer paying our seller and ours paying theirs | "Standard x402 on both sides. No key in the repo, history, web bundle or logs." | T-08, T-09 |
 
+Extra credit, 30 seconds each (only if time allows)
+
+- **Approval:** set "Ask me before any call above" to 0.008, run task 1, and when Beacon pauses on Brief show that nothing is signed, then click Approve.
+- **Metered pricing:** open the Ledger after a run: Brief's rows show listed 0.010 but asked and paid 0.006 for the single-country call.
+- **Agent chain:** tick "Agent chain" and run: Beacon pays Atlas and Relay; Relay's card shows the Tremor purchases it made with its own wallet, with transaction links.
+
 Practical notes
 
 - Facilitator settlement time varies from 2 seconds to a minute. Keep talking while it loads. A slow call shows as pending and is recovered from the chain.

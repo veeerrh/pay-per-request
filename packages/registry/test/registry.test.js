@@ -73,6 +73,26 @@ describe('registry (TC-6.1)', () => {
     expect((await (await fetch(`${base}/services`)).json())).toHaveLength(1);
   });
 
+  it('04b a metered seller that asks LESS than its listed ceiling is not flagged; asking more still is', async () => {
+    const base = await start({ fetch: probeFetch('6000') });
+    const j = await (await post(base, listing({ name: 'Metered', price: '10000' }))).json();
+    expect(j.status).toBe('active');
+    expect(j.probe.matches).toBe(true);
+  });
+
+  it('04c a flagged seller that fixes its 402 clears the flag by registering the same listing again; a liar stays flagged', async () => {
+    let ask = '10000';
+    const base = await start({ fetch: (...a) => probeFetch(ask)(...a) });
+    const first = await (await post(base, listing({ name: 'Fixer', price: '1000' }))).json();
+    expect(first.status).toBe('flagged');
+    const still = await (await post(base, listing({ name: 'Fixer', price: '1000' }))).json();
+    expect(still.status).toBe('flagged'); // still lying
+    ask = '1000'; // the seller fixes its 402
+    const fixed = await (await post(base, listing({ name: 'Fixer', price: '1000' }))).json();
+    expect(fixed).toMatchObject({ status: 'active', unchanged: true });
+    expect((await (await fetch(`${base}/services`)).json())[0].status).toBe('active');
+  });
+
   it('05 rate limit returns 429 (S-50)', async () => {
     const base = await start({ rateLimit: 3, maxPerPayTo: 99 });
     const codes = [];

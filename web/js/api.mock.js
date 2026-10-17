@@ -24,7 +24,7 @@ export function mock(live) {
     config: () => wait({ rules: { fallbackLimit: 3, probationAttempts: 3, dropThreshold: 0.5, perCallCeiling: '100000' }, ruleSetHash: 'mock'.padEnd(64, '0'), network: 'eip155:84532', hygiene: null, buyer: 'Scout' }),
     services: () => wait(SERVICES), registerService: off,
     wallet: () => wait({ address: '0x0000000000000000000000000000000000000000', usdcBalance: '20000000', reserved: '0', sessionId: 'mock', spendingHalted: false, network: 'eip155:84532' }),
-    tasks: () => wait([]), task: off, createTask: off, taskChat: () => wait({ messages: [], status: 'stopped', usesModel: false }), chat: off,
+    tasks: () => wait([]), task: off, createTask: off, approve: off, taskChat: () => wait({ messages: [], status: 'stopped', usesModel: false }), chat: off,
     ledger: () => wait(LEDGER), verify: () => wait({ ok: true, rows: 1, headHash: 'mock'.padEnd(64, '0') }),
     reconcile: () => wait({ ok: false, status: 'unverified', ledgerTotal: '0', chainTotal: '0', differences: [], error: 'mock data, nothing to compare' }),
     reputation: () => wait([]), newSession: off, attack: off, attacks: () => wait([]), lab: off, labRun: off,

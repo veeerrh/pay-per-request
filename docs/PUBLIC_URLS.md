@@ -12,6 +12,8 @@ Deployed on Render (free) with an UptimeRobot ping; see `docs/DEPLOY_RENDER.md`.
 | Atlas (scraping, 0.005) | `https://agentmarket-public.onrender.com/atlas/countries?top=3&by=population` |
 | Tremor (data, 0.002) | `https://agentmarket-public.onrender.com/tremor/quakes?country=India&days=7&minMag=4.5` |
 | Brief (inference, 0.010, POST) | `https://agentmarket-public.onrender.com/brief/brief` |
+| Relay (inference, agent chain, up to 0.010, POST) | `https://agentmarket-public.onrender.com/relay/relay` |
+| Relay's wallet and receipts | `https://agentmarket-public.onrender.com/relay/payments` |
 | Overquote (test vendor, price lie) | `https://agentmarket-public.onrender.com/overquote/countries` |
 | Redirect (test vendor, payTo lie) | `https://agentmarket-public.onrender.com/redirect/quakes` |
 | Hollow (test vendor, junk output, POST) | `https://agentmarket-public.onrender.com/hollow/brief` |
@@ -30,6 +32,7 @@ These are receive-only identifiers and safe to share. Private keys live only in 
 | --- | --- |
 | Beacon (buyer agent) | `0xADb43a17Cb94d4125f45522d815060B58A71dcCb` |
 | Spare buyer | `0x4Af8Fd5A3344faA60eaef44770BAAE3Df815a715` |
+| Relay (agent chain, also receives payments) | `0xfB30789E655883851E6C944Cd157C5cDBbD989a3` |
 | Replay script | `0x034096Fd351812A6cc5F465254793c19ee71ff7D` |
 
 Explorer: `https://sepolia.basescan.org/address/<address>`

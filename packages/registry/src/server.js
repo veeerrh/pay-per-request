@@ -50,11 +50,11 @@ function createRegistry(opts = {}) {
       const header = res.headers.get('payment-required');
       if (!header) return { matches: null, reason: '402 without a PAYMENT-REQUIRED header', at };
       const accepts = g.decodePaymentRequired(header).accepts;
-      const ok = accepts.some((a) => a.network === g.NETWORK && a.asset.toLowerCase() === g.USDC_ADDRESS.toLowerCase() && a.amount === BigInt(l.price) && a.payTo.toLowerCase() === l.payTo.toLowerCase());
+      const ok = accepts.some((a) => a.network === g.NETWORK && a.asset.toLowerCase() === g.USDC_ADDRESS.toLowerCase() && a.amount <= BigInt(l.price) && a.payTo.toLowerCase() === l.payTo.toLowerCase());
       if (ok) return { matches: true, reason: null, at };
       const a = accepts[0];
       const why = [];
-      if (a.amount !== BigInt(l.price)) why.push(`asks ${a.amount} units against a listed ${l.price}`);
+      if (a.amount > BigInt(l.price)) why.push(`asks ${a.amount} units against a listed ${l.price}`);
       if (a.payTo.toLowerCase() !== l.payTo.toLowerCase()) why.push(`names payTo ${a.payTo}, not the listed ${l.payTo}`);
       if (a.network !== g.NETWORK) why.push(`names network ${a.network}`);
       if (a.asset.toLowerCase() !== g.USDC_ADDRESS.toLowerCase()) why.push(`names asset ${a.asset}`);
@@ -123,6 +123,14 @@ function createRegistry(opts = {}) {
     }
     const stored = JSON.stringify(listing);
     const h = hashOf({ ...listing, probeQuery: undefined, probeBody: undefined });
+    // Re-registering a flagged listing unchanged asks for a fresh probe, so a seller that fixed its 402 can clear its own flag.
+    if (existing && existing.listing_hash === h && existing.status === 'flagged') {
+      const again = await probe(listing);
+      if (again.matches !== false) db.prepare("UPDATE listings SET status='active', probe_json=?, updated_at=? WHERE id=?").run(JSON.stringify(again), new Date().toISOString(), id);
+      else db.prepare('UPDATE listings SET probe_json=?, updated_at=? WHERE id=?').run(JSON.stringify(again), new Date().toISOString(), id);
+      const row = db.prepare('SELECT status, version FROM listings WHERE id=?').get(id);
+      return res.status(200).json({ id, version: row.version, status: row.status, probe: again, unchanged: true });
+    }
     if (existing && existing.listing_hash === h) return res.status(200).json({ id, version: existing.version, status: existing.status, probe: JSON.parse(existing.probe_json || 'null'), unchanged: true });
 
     const now = new Date().toISOString();
