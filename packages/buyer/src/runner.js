@@ -41,7 +41,7 @@ async function runTask(ctx, req, emit = () => {}) {
     const planned = await beacon.plan(req.text);
     params = planned.params;
     emit({ type: 'plan', params, source: planned.source });
-    say(`I read your task as: ${planned.understanding}. Budget is a hard cap of ${fmt(req.budget)} USDC. I will find the countries, fetch earthquake data for each, then have a readiness brief written.`, 'plan');
+    say(`I read your task as: ${String(planned.understanding).replace(/[.\s]+$/, '')}. Budget is a hard cap of ${fmt(req.budget)} USDC. I will find the countries, fetch earthquake data for each, then have a readiness brief written.`, 'plan');
   } catch (e) { if (e instanceof PlanError) return blocked(e.message); throw e; }
   const plan = buildPlan(params);
 

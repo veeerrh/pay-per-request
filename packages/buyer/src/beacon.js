@@ -38,11 +38,12 @@ Return the chosen "id" exactly as given and a "reason" of at most two short sent
 
 const SUMMARY_SYSTEM = `${ROLE}
 Your job now: write the final report for the user in at most 150 words. Cover: what was asked, which agents you hired and why, what they returned, what it cost against the budget, and anything that went wrong or is uncertain.
-Use only the facts provided. Do not add numbers that are not in the facts.`;
+Use only the facts provided. Do not add numbers that are not in the facts.
+Write plain text only: no markdown, no asterisks, no headings. Short paragraphs or lines starting with a dash are fine.`;
 
 const ANSWER_SYSTEM = `${ROLE}
 Your job now: answer the user's question about the current task using only the facts provided. If the facts do not contain the answer, say you do not know.
-If the user asks you to buy, pay or change something, explain that a new purchase starts only when they submit a task. Keep answers under 120 words.`;
+If the user asks you to buy, pay or change something, explain that a new purchase starts only when they submit a task. Keep answers under 120 words. Plain text only: no markdown or asterisks.`;
 
 /** Typed, safe facts about a candidate. Seller-written text (descriptions, labels) is deliberately absent (M-12). */
 const candidateFacts = (c) => ({
@@ -82,7 +83,7 @@ function createBeacon({ llm, log } = {}) {
    */
   async function choose({ category, label, candidates, taskText }) {
     const top = candidates[0];
-    const templated = (c) => `${c.name} is ranked #${c.rank} of ${candidates.length}: ${c.why || `${c.rep?.proven ? 'proven' : 'unproven'}, score ${(c.rep?.score ?? 0.5).toFixed(2)}, ${fmt(c.price)} USDC`}.`;
+    const templated = (c) => (c.why ? `${c.why}.` : `${c.name} is ranked #${c.rank} of ${candidates.length}: ${c.rep?.proven ? 'proven' : 'unproven'}, score ${(c.rep?.score ?? 0.5).toFixed(2)}, ${fmt(c.price)} USDC.`);
     if (candidates.length === 1) return { id: top.id, reason: `${top.name} is the only eligible ${category} agent right now.`, source: 'rules' };
     if (!useModel) return { id: top.id, reason: templated(top), source: 'rules' };
     const facts = candidates.map(candidateFacts);
@@ -184,7 +185,8 @@ function factsFromTask(t) {
   const clip = (s, n) => String(s ?? '').slice(0, n);
   return {
     task: clip(t.text, 300), status: t.status, stage: t.stage || null, notice: clip(t.notice, 300),
-    budget: String(t.budget), budgetUsdc: fmt(t.budget), spent: String(t.spent), spentUsdc: fmt(t.spent), paidCalls: t.paidCalls,
+    budget: String(t.budget), budgetUsdc: fmt(t.budget), spent: String(t.spent), spentUsdc: fmt(t.spent),
+    remainingUsdc: fmt(BigInt(t.budget) - BigInt(t.spent)), paidCalls: t.paidCalls,
     params: t.params || null,
     choices: (t.choices || []).map((c) => ({ category: c.category, seller: c.name, reason: clip(c.reason, 400) })),
     purchases: (t.ledger || []).map((e) => ({
