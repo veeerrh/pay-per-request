@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { SERVICES, buildEnv, ROOT } = require('./lib/services');
 
-const only = process.argv.includes('--sellers') ? new Set(SERVICES.filter((s) => /^(atlas|tremor|brief|overquote|redirect|hollow|offline|shapeshifter)$/.test(s.name)).map((s) => s.name)) : null;
+const only = process.argv.includes('--sellers') ? new Set(SERVICES.filter((s) => /^(atlas|tremor|brief|relay|overquote|redirect|hollow|offline|shapeshifter)$/.test(s.name)).map((s) => s.name)) : null;
 
 // --public: demo mode for the judging run. Needs PUBLIC_BASE_URL (the tunnel URL) and refuses private endpoints (D-29).
 const PUBLIC = process.argv.includes('--public');
@@ -32,7 +32,9 @@ const inUse = (port, host) => new Promise((resolve) => {
 const portFree = async (port) => !(await inUse(port, '127.0.0.1')) && !(await inUse(port, '::1'));
 
 (async () => {
-  const list = SERVICES.filter((s) => (!only || only.has(s.name)) && (!s.optional || fs.existsSync(path.join(ROOT, s.script))));
+  // A service with a `needs` variable is only started when that variable is set (Relay needs its own wallet key).
+  const list = SERVICES.filter((s) => (!only || only.has(s.name)) && (!s.optional || fs.existsSync(path.join(ROOT, s.script))) && (!s.needs || process.env[s.needs]));
+  const skipListings = SERVICES.filter((s) => s.needs && !process.env[s.needs]).map((s) => s.name).join(',');
   for (const s of list) if (!(await portFree(s.port))) { console.error(`REFUSING TO START: port ${s.port} (${s.name}) is already in use. Nothing was started.`); process.exit(1); }
   fs.mkdirSync(path.join(ROOT, 'logs'), { recursive: true });
   const children = [];
@@ -50,7 +52,7 @@ const portFree = async (port) => !(await inUse(port, '127.0.0.1')) && !(await in
     // Register the seven listings (idempotent). In public mode the listings carry the public tunnel URL.
     await new Promise((r) => setTimeout(r, 4000));
     const base = PUBLIC ? process.env.PUBLIC_BASE_URL : 'http://localhost';
-    const seed = spawn(process.execPath, [path.join(ROOT, 'scripts', 'seed-registry.js'), 'http://localhost:4000', base], { cwd: ROOT, stdio: 'inherit' });
+    const seed = spawn(process.execPath, [path.join(ROOT, 'scripts', 'seed-registry.js'), 'http://localhost:4000', base], { cwd: ROOT, stdio: 'inherit', env: { ...process.env, SKIP_LISTINGS: skipListings } });
     seed.on('exit', () => console.log(PUBLIC ? `\nPublic URL: ${process.env.PUBLIC_BASE_URL}   (dashboard at /, registry at /registry/services)` : '\nDashboard: http://localhost:4100   (everything through one door: http://localhost:8080)'));
   }
 })();

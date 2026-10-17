@@ -46,7 +46,7 @@ describe('Beacon API (TC-6.3)', () => {
     const w = await (await fetch(`${base}/api/wallet`)).json();
     expect(w).toMatchObject({ address: signer.address, usdcBalance: '20000000', network: 'eip155:84532' });
     expect(JSON.stringify(w)).not.toMatch(/0x[0-9a-fA-F]{64}/); // never a key (TC-6.3-12)
-    expect((await (await fetch(`${base}/api/services`)).json())).toHaveLength(7);
+    expect((await (await fetch(`${base}/api/services`)).json())).toHaveLength(8);
     expect((await (await fetch(`${base}/api/ledger/verify`)).json())).toMatchObject({ ok: true });
     expect(await (await fetch(`${base}/api/ledger`)).json()).toEqual([]);
     expect(await (await fetch(`${base}/api/reputation`)).json()).toEqual([]);

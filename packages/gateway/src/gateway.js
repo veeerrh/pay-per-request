@@ -1,11 +1,11 @@
 // One public door (D-25): path prefixes route to the local services so a single HTTPS tunnel serves everything.
-//   /registry -> :4000   /atlas :4011  /tremor :4012  /brief :4013  /overquote :4021  /redirect :4022  /hollow :4023  /offline :4024
+//   /registry -> :4000   /atlas :4011  /tremor :4012  /brief :4013  /overquote :4021  /redirect :4022  /hollow :4023  /offline :4024  /relay :4014
 //   everything else -> Beacon :4100 (dashboard, buyer API, live events)
 // A tiny hand-written proxy on purpose (no proxy library, so nothing extra to audit). It adds no compression or
 // buffering, so server-sent events stream straight through.
 const http = require('http');
 
-const ROUTES = { registry: 4000, atlas: 4011, tremor: 4012, brief: 4013, overquote: 4021, redirect: 4022, hollow: 4023, offline: 4024 };
+const ROUTES = { registry: 4000, atlas: 4011, tremor: 4012, brief: 4013, overquote: 4021, redirect: 4022, hollow: 4023, offline: 4024, relay: 4014 };
 const json = (res, status, body) => { if (!res.headersSent) res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
 
 function forward(req, res, { host, port, path, timeoutMs, label, scheme }) {

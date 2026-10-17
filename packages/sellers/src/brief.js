@@ -46,9 +46,13 @@ Write "actions": up to three short, practical steps that match the level (low is
 Never change the level. Do not predict future earthquakes. Do not mention places, damage, casualties or any figure that is not provided.
 Return the countries in the same order with the same names.`;
 
-function createBrief(opts = {}) {
-  const llm = agentLlm('BRIEF', opts);
-  const enrich = memoEnrich({ log: (m) => console.warn(`brief: ${m}`) });
+/**
+ * The brief-writing logic, shared by Brief and by Relay (the chained agent): code decides the readiness level, a model (if its key is set)
+ * writes the wording, and any text with an ungrounded number is dropped. prefix is the env prefix of the model key (BRIEF_ or RELAY_).
+ */
+function createBriefWriter(prefix, opts = {}) {
+  const llm = agentLlm(prefix, opts);
+  const enrich = memoEnrich({ log: (m) => console.warn(`${prefix.toLowerCase()}: ${m}`) });
 
   /** Model wording for each country, or null. Each entry is checked on its own; a bad one falls back to the template. */
   async function write(countries, base) {
@@ -56,7 +60,8 @@ function createBrief(opts = {}) {
       thresholds: THRESHOLDS,
       countries: countries.map((c, i) => ({ name: c.name, readiness: base[i].readiness, events: c.quakes.length, strongestMagnitude: c.quakes.length ? strongest(c.quakes) : null, magnitudes: c.quakes.map((q) => q.magnitude).slice(0, 20) })),
     };
-    const out = await llm.generateJson({ name: 'brief-write', system: BRIEF_SYSTEM, schema: BriefOut, maxOutputTokens: 700, user: `${quote('country data', facts)}\nWrite the briefs now.` });
+    const out = await llm.generateJson({ name: 'brief-write', system: BRIEF_SYSTEM, schema: BriefOut, maxOutputTokens: 700, user: `${quote('country data', facts)}
+Write the briefs now.` });
     if (out.briefs.length !== countries.length || out.briefs.some((b, i) => b.country !== countries[i].name)) return null;
     const factsText = JSON.stringify(facts);
     const entries = out.briefs.map((b) => {
@@ -67,6 +72,22 @@ function createBrief(opts = {}) {
     });
     return entries.some(Boolean) ? entries : null;
   }
+
+  /** countries: [{ name, quakes: [{ magnitude }] }]. Returns the seller response body. */
+  async function compose(countries) {
+    const base = countries.map(brief);
+    const key = crypto.createHash('sha1').update(JSON.stringify(countries.map((c) => [c.name, c.quakes.map((q) => q.magnitude)]))).digest('hex');
+    const extra = llm.enabled ? await enrich(key, () => write(countries, base)) : null;
+    const briefs = base.map((b, i) => (extra?.[i]
+      ? { ...b, brief: extra[i].brief, ...(extra[i].actions.length ? { actions: extra[i].actions } : {}), basis: { events: countries[i].quakes.length, strongest: countries[i].quakes.length ? strongest(countries[i].quakes) : null } }
+      : b));
+    return { briefs, meta: { notes: extra ? 'model' : 'rules' } };
+  }
+  return { llm, compose };
+}
+
+function createBrief(opts = {}) {
+  const writer = createBriefWriter('BRIEF', opts);
 
   return boot('brief', 4013, {
     method: 'POST', path: '/brief', priceUnits: '10000', priceFn: quoteUnits, handlerTimeoutMs: 40000,
@@ -82,19 +103,10 @@ function createBrief(opts = {}) {
       }
       return null;
     },
-    handler: async (req) => {
-      const countries = req.body.countries;
-      const base = countries.map(brief);
-      const key = crypto.createHash('sha1').update(JSON.stringify(countries.map((c) => [c.name, c.quakes.map((q) => q.magnitude)]))).digest('hex');
-      const extra = llm.enabled ? await enrich(key, () => write(countries, base)) : null;
-      const briefs = base.map((b, i) => (extra?.[i]
-        ? { ...b, brief: extra[i].brief, ...(extra[i].actions.length ? { actions: extra[i].actions } : {}), basis: { events: countries[i].quakes.length, strongest: countries[i].quakes.length ? strongest(countries[i].quakes) : null } }
-        : b));
-      return { briefs, meta: { notes: extra ? 'model' : 'rules' } };
-    },
+    handler: async (req) => writer.compose(req.body.countries),
     outputCheck: (o) => (o.briefs.every((b) => ['low', 'medium', 'high'].includes(b.readiness)) ? null : 'bad readiness'),
   }, opts.requiredBy ?? module);
 }
 
 const app = createBrief();
-module.exports = { app, createBrief, readiness, quoteUnits, METER };
+module.exports = { app, createBrief, createBriefWriter, readiness, quoteUnits, METER, ACTION };

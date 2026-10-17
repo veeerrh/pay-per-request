@@ -30,7 +30,16 @@ function validateParams(p) {
 }
 
 /** scrape -> data (one call per country) -> inference (batches of at most 2 countries, S-45). */
-function buildPlan(p) {
+function buildPlan(p, { chain = false } = {}) {
+  if (chain) {
+    return {
+      params: p,
+      steps: [
+        { id: 'scrape', category: 'scraping', calls: 1, label: `Find the ${p.n} ${p.by === 'area' ? 'largest' : 'most populous'} countries` },
+        { id: 'briefs', category: 'inference', calls: Math.ceil(p.n / 2), label: 'Hire Relay: it buys the earthquake data from Tremor itself and writes a brief per country (2 countries per call)' },
+      ],
+    };
+  }
   return {
     params: p,
     steps: [

@@ -44,6 +44,9 @@ function createSellerApp(opts) {
     if (req.method !== method) return next();
     const err = opts.inputCheck ? opts.inputCheck(req) : null;
     if (err) return res.status(400).json({ error: 'invalid_input', detail: err });
+    // A seller that cannot serve right now says so BEFORE any 402, so nobody is asked to pay for nothing.
+    const away = opts.unavailable ? opts.unavailable(req) : null;
+    if (away) return res.status(503).json({ error: 'unavailable', detail: away });
     next();
   });
 

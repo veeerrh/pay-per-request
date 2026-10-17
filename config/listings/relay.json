@@ -1,0 +1,97 @@
+{
+  "name": "Relay",
+  "category": "inference",
+  "price": "10000",
+  "port": 4014,
+  "path": "/relay",
+  "method": "POST",
+  "description": "Agent chain. Pay Relay once and it buys the earthquake data from Tremor itself, with its own wallet and through the same payment checks, then writes the readiness brief. Metered per country: 0.006 USDC for one, 0.010 for two (the listed price is the ceiling); cheaper than buying the data and the brief separately.",
+  "labels": [
+    "chain",
+    "metered"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "countries"
+    ],
+    "properties": {
+      "countries": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 2,
+        "items": {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 80
+            }
+          }
+        }
+      },
+      "days": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 30
+      },
+      "minMag": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 9
+      }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "required": [
+      "briefs"
+    ],
+    "properties": {
+      "briefs": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "required": [
+            "country",
+            "readiness",
+            "brief"
+          ],
+          "properties": {
+            "country": {
+              "type": "string"
+            },
+            "readiness": {
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ]
+            },
+            "brief": {
+              "type": "string"
+            },
+            "actions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "maxItems": 3
+            },
+            "basis": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "meta": {
+        "type": "object"
+      }
+    }
+  }
+}

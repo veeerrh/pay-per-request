@@ -5,6 +5,8 @@ const { buildPlan, estimateMin, PlanError } = require('./planner');
 const { buildResult, fmt } = require('./reporter');
 const { createBeacon, factsFromTask } = require('./beacon');
 const { createApprovals } = require('./approvals');
+const path = require('path');
+const RELAY_PAYTO = (() => { try { return String(require(path.join(__dirname, '..', '..', '..', 'config', 'addresses.json')).sellers.relay || '').toLowerCase(); } catch { return ''; } })();
 
 /**
  * ctx: { store, budget, signer, cfg, chain, listings: () => Promise<Listing[]>, log, now? }
@@ -13,6 +15,7 @@ const { createApprovals } = require('./approvals');
 async function runTask(ctx, req, emit = () => {}) {
   const { store, budget, signer, cfg, chain } = ctx;
   const taskId = req.taskId;
+  const chainMode = !!req.chain; // opt-in: Relay buys the earthquake data itself
   const beacon = ctx.beacon || createBeacon({ log: ctx.log });
   const act = (kind, text) => emit({ type: 'activity', kind, text, at: new Date().toISOString() });
   /** A line in the Beacon chat. Built from recorded facts; the chat shows what Beacon did and why. */
@@ -64,12 +67,19 @@ async function runTask(ctx, req, emit = () => {}) {
     params = planned.params;
     noteFallback(planned.fallback);
     emit({ type: 'plan', params, source: planned.source });
-    say(`I read your task as: ${String(planned.understanding).replace(/[.\s]+$/, '')}. Budget is a hard cap of ${fmt(req.budget)} USDC. I will find the countries, fetch earthquake data for each, then have a readiness brief written.`, 'plan');
+    say(`I read your task as: ${String(planned.understanding).replace(/[.\s]+$/, '')}. Budget is a hard cap of ${fmt(req.budget)} USDC. ${chainMode ? 'I will find the countries, then hire Relay, which buys the earthquake data from Tremor itself and writes the briefs.' : 'I will find the countries, fetch earthquake data for each, then have a readiness brief written.'}`, 'plan');
   } catch (e) { if (e instanceof PlanError) return blocked(e.message); throw e; }
-  const plan = buildPlan(params);
+  const plan = buildPlan(params, { chain: chainMode });
 
   // Listings: take the snapshot once at task start (M-54). Hired agents pin their category.
   let listings = await ctx.listings();
+  // The agent chain (Relay) is opt-in. Identified by its id AND its registered payee address, never by seller-written text (M-12):
+  // without the option it is not a candidate for any step; with the option the inference step can only be Relay.
+  const isRelay = (l) => l.id === 'relay' && !!RELAY_PAYTO && String(l.payTo).toLowerCase() === RELAY_PAYTO;
+  if (chainMode) {
+    if (!listings.some(isRelay)) return blocked('You asked for the agent chain, but Relay is not listed right now (or its address does not match). Nothing was bought.');
+    listings = listings.filter((l) => l.category !== 'inference' || isRelay(l));
+  } else listings = listings.filter((l) => l.id !== 'relay');
   const hired = new Set(req.hired || []);
   for (const cat of new Set(listings.map((l) => l.category))) {
     const pinned = listings.filter((l) => l.category === cat && hired.has(l.id));
@@ -190,9 +200,48 @@ async function runTask(ctx, req, emit = () => {}) {
     for (const c of o.countries) if (c.note) agentNote(who, 'scraping', `${c.name}: ${c.note}`);
   }
 
+  const quakeByCountry = new Map();
+  const briefs = [];
+  let chainInfo = null;
+  if (chainMode) {
+    // 2+3 (chained). One purchase per batch of at most two countries: Relay buys the quake data from Tremor itself, with its own wallet.
+    const hiredByRelay = [];
+    const names = countries;
+    const batches = [];
+    for (let i = 0; i < names.length; i += 2) batches.push(names.slice(i, i + 2));
+    const chainCall = (batch) => async () => {
+      const out = note(await step('inference', (c) => ({
+        url: c.endpoint, method: 'POST', body: JSON.stringify({ countries: batch.map((n) => ({ name: n })), days: params.days, minMag: params.minMag }),
+        validate: g.makeValidator({ outputSchema: c.outputSchema, sanity: 'brief', context: { countries: batch, knownCountries: batch } }),
+      }), snapshotRep()));
+      if (!out.accepted) return out;
+      const o = out.accepted.result.output;
+      briefs.push(...o.briefs);
+      for (const b of o.briefs) if (b.actions?.length) agentNote(out.accepted.candidate.name, 'inference', `Actions for ${b.country}: ${b.actions.join('; ')}`);
+      // What Relay says it bought. It is the seller's own account, so it is shown as such and only checked for shape and plausibility.
+      const ch = o.meta?.chain;
+      if (ch && Array.isArray(ch.hired)) {
+        for (const h of ch.hired.slice(0, 4)) {
+          const row = { seller: String(h.seller ?? '').slice(0, 40), country: String(h.country ?? '').slice(0, 80), paidUnits: /^\d{1,9}$/.test(String(h.paidUnits)) ? String(h.paidUnits) : '0', txHash: /^0x[0-9a-fA-F]{64}$/.test(String(h.txHash)) ? String(h.txHash) : null };
+          hiredByRelay.push(row);
+          agentNote(out.accepted.candidate.name, 'inference', `Hired ${row.seller} for ${row.country} and paid ${fmt(row.paidUnits)} USDC from its own wallet${row.txHash ? ` (tx ${row.txHash.slice(0, 10)}...)` : ''}.`);
+          emit({ type: 'chain', agent: out.accepted.candidate.name, ...row, at: new Date().toISOString() });
+        }
+      }
+      for (const d of Array.isArray(ch?.data) ? ch.data.slice(0, 2) : []) {
+        const q = { country: String(d.country ?? ''), window_days: params.days, quakes: Array.isArray(d.quakes) ? d.quakes.slice(0, 50) : [] };
+        if (batch.includes(q.country) && !g.sanityCheck('tremor', q, { country: q.country, days: params.days, minMag: params.minMag })) quakeByCountry.set(q.country, q);
+      }
+      return out;
+    };
+    if (batches.length) {
+      await chainCall(batches[0])();
+      await g.runWithConcurrency(req.maxConcurrency, batches.slice(1).map((b) => chainCall(b)));
+    }
+    if (hiredByRelay.length) chainInfo = { agent: 'Relay', hired: hiredByRelay, spentUnits: String(hiredByRelay.reduce((s, h) => s + BigInt(h.paidUnits), 0n)) };
+  } else {
   // 2. data: one call per country. Probe-first: the first call runs alone so a liar is discovered once,
   // then the rest run in parallel up to max_concurrency.
-  const quakeByCountry = new Map();
   const quakeCall = (country) => async (rep) => {
     const out = note(await step('data', (c) => ({
       url: `${c.endpoint}?country=${encodeURIComponent(country)}&days=${params.days}&minMag=${params.minMag}`,
@@ -212,7 +261,6 @@ async function runTask(ctx, req, emit = () => {}) {
   }
 
   // 3. inference: batches of at most 2 countries, same probe-first rule.
-  const briefs = [];
   const withData = countries.filter((c) => quakeByCountry.has(c));
   const batches = [];
   for (let i = 0; i < withData.length; i += 2) batches.push(withData.slice(i, i + 2));
@@ -231,13 +279,14 @@ async function runTask(ctx, req, emit = () => {}) {
     await briefCall(batches[0])();
     await g.runWithConcurrency(req.maxConcurrency, batches.slice(1).map((b) => briefCall(b)));
   }
+  }
 
   // 4. combine
   stage('execute');
   stage('validate');
   stage('combine');
   act('info', 'Combining validated outputs into one result.');
-  const complete = stops.length === 0 && countries.length === params.n && quakeByCountry.size === params.n && briefs.length === params.n;
+  const complete = stops.length === 0 && countries.length === params.n && (chainMode || quakeByCountry.size === params.n) && briefs.length === params.n;
   const notice = complete ? '' : (stops[0]?.message || 'Not every step produced a valid result. Partial result below.');
   const entries = store.listEntries().filter((e) => e.taskId === taskId);
   const result = buildResult({ params, countries, quakeByCountry, briefs, attempts, entries, complete, notice });
@@ -246,6 +295,7 @@ async function runTask(ctx, req, emit = () => {}) {
   const status = complete ? 'completed' : 'stopped';
   act(complete ? 'completed' : 'stopped', complete ? `Task completed. Spent ${fmt(totals.spent)} of ${fmt(totals.budget)} USDC.` : notice);
   result.agentNotes = agentNotes;
+  if (chainInfo) result.chain = chainInfo;
   result.choices = choices.map((c) => ({ category: c.category, sellerId: c.id, seller: c.name, reason: c.reason, source: c.source }));
   const summary = await beacon.summarize(factsFromTask({
     text: req.text, status, stage: 'combine', notice, budget: String(totals.budget), spent: String(totals.spent), paidCalls, params, choices, ledger: ledgerRows, result, agentNotes,

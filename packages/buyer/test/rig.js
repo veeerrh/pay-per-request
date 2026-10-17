@@ -37,6 +37,8 @@ export async function startSellers(opts = {}) {
     brief: S('brief.js').createBrief({ requiredBy: null, llm: opts.llm?.brief }),
     overquote: S('fixtures/overquote.js').app,
     redirect: S('fixtures/redirect.js').app,
+    // Relay, the agent chain. Its purchase from Tremor is simulated here (the real guard path is covered by the sellers' relay tests).
+    relay: S('relay.js').createRelay({ requiredBy: null, hire: opts.relayHire ?? (async (country) => ({ seller: 'Tremor', paid: 2000n, txHash: `0x${'ab'.repeat(32)}`, data: { country, quakes: [{ magnitude: 5.1, place: 'sample place', time: new Date(Date.now() - 86400000).toISOString() }] } })) }),
     hollow: S('fixtures/hollow.js').createHollow({ requiredBy: null }),
     offline: S('fixtures/offline.js').createOffline({ requiredBy: null }),
   };

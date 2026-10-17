@@ -18,6 +18,8 @@ const SERVICES = [
   seller('redirect', 4022, 'fixtures/redirect.js'),
   seller('hollow', 4023, 'fixtures/hollow.js'),
   seller('offline', 4024, 'fixtures/offline.js'),
+  // The agent chain: the only seller with a wallet key. It buys from Tremor itself, so it also needs the registry address.
+  { name: 'relay', port: 4014, script: 'packages/sellers/src/relay.js', env: { PORT: '4014' }, allow: [...BASE, ...MODEL_VARS, 'RELAY_PRIVATE_KEY', 'RELAY_GEMINI_API_KEY', 'RELAY_LLM', 'REGISTRY_URL'], needs: 'RELAY_PRIVATE_KEY' },
   // Lab-only vendor: not in the registry and not routed through the gateway; Beacon reaches it on loopback from the Fraud Lab.
   { name: 'shapeshifter', port: 4025, script: 'packages/sellers/src/fixtures/shapeshifter.js', env: { PORT: '4025', PAY_TO: addresses.lab?.shapeshifter }, allow: BASE },
   // Added in later milestones: the registry holds no key; Beacon is the only process that receives one.

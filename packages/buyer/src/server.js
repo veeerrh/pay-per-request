@@ -307,7 +307,7 @@ function createServer(deps) {
 }
 
 /** Registry listings as typed seller listings (typed fields only, M-12). Held listings are not used (M-05). */
-const LOCAL_PORTS = { atlas: 4011, tremor: 4012, brief: 4013, overquote: 4021, redirect: 4022, hollow: 4023, offline: 4024 };
+const LOCAL_PORTS = { atlas: 4011, tremor: 4012, brief: 4013, overquote: 4021, redirect: 4022, hollow: 4023, offline: 4024, relay: 4014 };
 
 /** When the listing points at our own public URL, Beacon calls the seller over loopback instead of going out through the tunnel. */
 function localize(endpoint, id) {

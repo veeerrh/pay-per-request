@@ -14,6 +14,7 @@ const PROBE = { atlas: 'top=3', overquote: 'top=3', offline: 'top=3', tremor: 'c
   const dir = path.join(ROOT, 'config', 'listings');
   for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.json')).sort()) {
     const id = f.replace('.json', '');
+    if ((process.env.SKIP_LISTINGS || '').split(',').includes(id)) { console.log(id.padEnd(10), 'skipped (that agent is not running here)'); continue; }
     const l = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
     const endpoint = publicMode ? `${base}/${id}${l.path}` : `${base}:${l.port}${l.path}`;
     const body = {
@@ -22,6 +23,7 @@ const PROBE = { atlas: 'top=3', overquote: 'top=3', offline: 'top=3', tremor: 'c
       description: l.description, labels: l.labels || [],
       ...(PROBE[id] ? { probeQuery: PROBE[id] } : {}),
       ...(id === 'brief' || id === 'hollow' ? { probeBody: { countries: [{ name: 'India', quakes: [] }] } } : {}),
+      ...(id === 'relay' ? { probeBody: { countries: [{ name: 'India' }] } } : {}),
     };
     const r = await fetch(`${registry}/services`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const j = await r.json();
