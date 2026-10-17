@@ -13,5 +13,8 @@
     "redirect-decoy": "0xE525FEaB25067bcda6B6aE67F00c8b3407E49F6e",
     "hollow": "0x882a4d0a9d77eb1a71B06B08Eb5fB510c6f0f5aE",
     "offline": "0x5b5331F0c26356622D9E0F5D9DA7Bf57d9F05308"
+  },
+  "lab": {
+    "shapeshifter": "0x5342137a225C44721d8c08f28EeA31f82925e874"
   }
 }

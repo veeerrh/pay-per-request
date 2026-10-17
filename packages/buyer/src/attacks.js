@@ -42,8 +42,8 @@ function install(app, ctx) {
     failure: (l) => ({ url: `${l.endpoint}?top=1` }),
   };
 
-  async function replay(listing) {
-    const rs = ctx.replaySigner;
+  async function replay(listing, actor) {
+    const rs = actor || ctx.replaySigner;
     if (!rs) { const e = new Error('The replay wallet key is not configured (REPLAY_PRIVATE_KEY).'); e.status = 501; e.code = 'no_replay_wallet'; throw e; }
     const bal = await chain.balanceOf(rs.address);
     if (bal < listing.price * 2n) { const e = new Error(`The replay wallet (${rs.address}) holds ${g.formatUsdc(bal)} USDC and needs at least ${g.formatUsdc(listing.price * 2n)}. Fund it at the Circle faucet.`); e.status = 400; e.code = 'replay_wallet_unfunded'; throw e; }
@@ -59,18 +59,31 @@ function install(app, ctx) {
       return (await rs.signPayment({ ...raw, accepts: [raw.accepts[ev.chosenIndex]] })).headers;
     };
     const send = (h) => fetch(url, { headers: h, signal: AbortSignal.timeout(cfg.requestTimeoutMs) }).then((r) => r.status).catch(() => 0);
-    const a = await sign();
-    const first = await send(a);
+    // The public facilitator sometimes answers 402 to a good payment before anything is claimed. That is not a replay, so sign
+    // a fresh authorization and try again (at most 3 times per stage) and report how often it happened.
+    let a; let first = 0; let failedFirst = 0;
+    for (let i = 0; i < 3; i++) { a = await sign(); first = await send(a); if (first === 200) break; failedFirst++; }
     const second = await send(a);
-    const b = await sign();
-    const parallel = await Promise.all(Array.from({ length: 5 }, () => send(b)));
-    let transfers = null;
+    let b; let parallel = []; let failedParallel = 0;
+    for (let i = 0; i < 3; i++) {
+      b = await sign();
+      parallel = await Promise.all(Array.from({ length: 5 }, () => send(b)));
+      if (parallel.some((c) => c === 200)) break;
+      failedParallel++;
+    }
+    let transfers = null; let transferHashes = [];
     await new Promise((r) => setTimeout(r, 4000));
-    try { transfers = (await chain.getTransfersFrom(rs.address, BigInt(startBlock))).filter((t) => t.to.toLowerCase() === listing.payTo.toLowerCase()).length; } catch { /* unverified */ }
+    try {
+      const list = (await chain.getTransfersFrom(rs.address, BigInt(startBlock))).filter((t) => t.to.toLowerCase() === listing.payTo.toLowerCase());
+      transfers = list.length;
+      transferHashes = list.map((t) => t.txHash).filter(Boolean);
+    } catch { /* unverified */ }
     const winners = parallel.filter((c) => c === 200).length;
     const pass = first === 200 && second !== 200 && winners === 1 && (transfers === null || transfers === 2);
-    return { stage1: first, stage2: second, stage3: parallel, winners, transfers, pass, wallet: rs.address };
+    return { stage1: first, stage2: second, stage3: parallel, winners, transfers, pass, wallet: rs.address, transferHashes, retries: { first: failedFirst, parallel: failedParallel } };
   }
+
+  require('./lab').install(app, { ...ctx, replay }, { limiter });
 
   app.post('/api/attack/:case', limiter, async (req, res) => {
     const id = req.params.case;

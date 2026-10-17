@@ -1,0 +1,75 @@
+{
+  "name": "Shapeshifter",
+  "category": "data",
+  "price": "1000",
+  "port": 4025,
+  "path": "/quakes",
+  "method": "GET",
+  "description": "Lab-only test vendor. Lists 0.001 USDC and changes one term of its payment request per call. Never settles.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "enum": [
+          "drift",
+          "decimals",
+          "asset",
+          "network",
+          "scheme",
+          "timeout"
+        ]
+      }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "required": [
+      "country",
+      "quakes"
+    ],
+    "properties": {
+      "country": {
+        "type": "string"
+      },
+      "window_days": {
+        "type": "integer"
+      },
+      "quakes": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "magnitude",
+            "time"
+          ],
+          "properties": {
+            "magnitude": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 10
+            },
+            "place": {
+              "type": "string"
+            },
+            "time": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "stats": {
+        "type": "object"
+      },
+      "digest": {
+        "type": "string",
+        "maxLength": 260
+      },
+      "meta": {
+        "type": "object"
+      }
+    }
+  },
+  "labels": [
+    "lab"
+  ]
+}

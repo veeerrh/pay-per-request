@@ -80,7 +80,7 @@ function createServer(deps) {
       store.db.prepare('DELETE FROM beacon_tasks WHERE id NOT IN (SELECT id FROM beacon_tasks ORDER BY updated_at DESC LIMIT 60)').run();
       const rows = store.db.prepare('SELECT json FROM beacon_tasks ORDER BY updated_at DESC LIMIT 30').all().reverse();
       for (const r of rows) {
-        const t = { ...JSON.parse(r.json), events: [], subs: new Set() };
+        const t = { labSteps: [], ...JSON.parse(r.json), events: [], subs: new Set() };
         if (t.status === 'running') { t.status = 'stopped'; t.notice = 'Beacon restarted while this task was running. Anything already signed is tracked in the ledger.'; t.endedAt = new Date().toISOString(); }
         state.tasks.set(t.id, t);
         state.seq = Math.max(state.seq, Number(String(t.id).match(/^t(\d+)_/)?.[1] || 0));
@@ -145,14 +145,15 @@ function createServer(deps) {
   // ---------- tasks ----------
   const snapshot = (t) => ({
     id: t.id, text: t.text, budget: t.budget, maxConcurrency: t.maxConcurrency, hired: t.hired, kind: t.kind, status: t.status, stage: t.stage,
-    startedAt: t.startedAt, endedAt: t.endedAt, spent: t.spent, reserved: t.reserved, paidCalls: t.paidCalls, services: t.services, result: t.result, notice: t.notice,
+    startedAt: t.startedAt, endedAt: t.endedAt, spent: t.spent, reserved: t.reserved, paidCalls: t.paidCalls, services: t.services, result: t.result, notice: t.notice, ...(t.kind === 'lab' ? { labSteps: t.labSteps } : {}),
   });
   function apply(t, ev) {
     if (ev.type === 'plan') t.params = ev.params;
     else if (ev.type === 'choice') t.choices.push({ category: ev.category, id: ev.sellerId, name: ev.seller, reason: ev.reason, source: ev.source });
     else if (ev.type === 'ledger') t.ledger.push(ev.entry);
     else if (ev.type === 'note') t.agentNotes.push({ agent: ev.agent, category: ev.category, text: ev.text });
-    else if (ev.type === 'chat') { t.chat.push({ id: ev.id, role: ev.role, kind: ev.kind, text: ev.text, at: ev.at }); if (t.chat.length > 200) t.chat.shift(); }
+    else if (ev.type === 'chat') { t.chat.push({ id: ev.id, role: ev.role, kind: ev.kind, text: ev.text, at: ev.at, ...(ev.severity ? { severity: ev.severity } : {}), ...(ev.agent ? { agent: ev.agent } : {}) }); if (t.chat.length > 200) t.chat.shift(); }
+    else if (ev.type === 'lab_step') { const i = t.labSteps.findIndex((x) => x.key === ev.key); if (i >= 0) t.labSteps[i] = ev; else t.labSteps.push(ev); }
     else if (ev.type === 'stage') t.stage = ev.stage;
     else if (ev.type === 'metrics') Object.assign(t, { spent: ev.spent, reserved: ev.reserved, paidCalls: ev.paidCalls, services: ev.services });
     else if (ev.type === 'blocked') { t.status = 'blocked'; t.notice = ev.notice; t.endedAt = ev.at; }
@@ -166,6 +167,19 @@ function createServer(deps) {
     if (e.type === 'chat' || e.type === 'done' || e.type === 'blocked') saveTask(t);
     for (const sub of t.subs) sub.write(`id: ${e.id}\ndata: ${JSON.stringify(ser(e))}\n\n`);
     if (t.status !== 'running') { for (const sub of t.subs) sub.end(); t.subs.clear(); }
+  }
+
+  /** One place that makes a task record, so tasks, direct purchases and Fraud Lab runs share events, chat, polling and history. */
+  function newTaskRecord({ text, budget, maxConcurrency = 1, hired = [], kind = 'task' }) {
+    const id = `t${++state.seq}_${crypto.randomBytes(3).toString('hex')}`;
+    const t = {
+      id, text, budget, maxConcurrency, hired, kind,
+      status: 'running', stage: null, startedAt: new Date().toISOString(), endedAt: null, spent: '0', reserved: '0', paidCalls: 0, services: [], result: null, notice: '', events: [], subs: new Set(),
+      lastEventId: 0, params: null, choices: [], ledger: [], chat: [], agentNotes: [], labSteps: [],
+    };
+    state.tasks.set(id, t);
+    saveTask(t);
+    return t;
   }
 
   app.post('/api/tasks', taskLimiter, async (req, res) => {
@@ -185,14 +199,8 @@ function createServer(deps) {
     if (body.directUrl && !deps.allowPrivate && !body.directUrl.url.startsWith('https://')) return res.status(400).json({ error: 'invalid_task', issues: [{ path: 'directUrl.url', message: 'The URL must use https.' }] });
     if (body.directUrl && BigInt(body.directUrl.expectedPrice) > g.MAX_PRICE) return res.status(400).json({ error: 'invalid_task', issues: [{ path: 'directUrl.expectedPrice', message: 'Expected price is above the 0.10 USDC cap.' }] });
 
-    const id = `t${++state.seq}_${crypto.randomBytes(3).toString('hex')}`;
-    const t = {
-      id, text: body.text ?? `Direct purchase from ${body.directUrl.url}`, budget: body.budget, maxConcurrency: body.maxConcurrency, hired: body.hired, kind: body.directUrl ? 'direct' : 'task',
-      status: 'running', stage: null, startedAt: new Date().toISOString(), endedAt: null, spent: '0', reserved: '0', paidCalls: 0, services: [], result: null, notice: '', events: [], subs: new Set(),
-      lastEventId: 0, params: null, choices: [], ledger: [], chat: [], agentNotes: [],
-    };
-    state.tasks.set(id, t);
-    saveTask(t);
+    const t = newTaskRecord({ text: body.text ?? `Direct purchase from ${body.directUrl.url}`, budget: body.budget, maxConcurrency: body.maxConcurrency, hired: body.hired, kind: body.directUrl ? 'direct' : 'task' });
+    const id = t.id;
     res.status(202).json({ taskId: id });
     const ctx = { store, budget, signer, cfg, chain, log: deps.log, listings: deps.listings, allowPrivate: deps.allowPrivate, beacon };
     const em = (ev) => emit(t, ev);
@@ -268,7 +276,7 @@ function createServer(deps) {
   });
 
   // ---------- extra routes (attack panel in 8.1) ----------
-  if (deps.extend) deps.extend(app, { state, store, budget, signer, chain, cfg, emit, snapshot, listings: deps.listings, checkChain, replaySigner: deps.replaySigner, attackLimit: deps.attackLimit });
+  if (deps.extend) deps.extend(app, { state, store, budget, signer, chain, cfg, emit, snapshot, listings: deps.listings, checkChain, replaySigner: deps.replaySigner, attackLimit: deps.attackLimit, newTask: newTaskRecord, beacon, log: deps.log, labEndpoints: deps.labEndpoints, reconcileRetry: deps.reconcileRetry });
 
   // ---------- static dashboard ----------
   const webDir = deps.webDir ?? path.join(ROOT, 'web');

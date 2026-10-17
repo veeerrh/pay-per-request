@@ -42,6 +42,12 @@ Use only the facts provided. Do not add numbers that are not in the facts.
 Briefly mention what the hired agents added in their own words (agentNotes), attributing each to its agent.
 Write plain text only: no markdown, no asterisks, no headings. Short paragraphs or lines starting with a dash are fine.`;
 
+const LAB_SYSTEM = `${ROLE}
+Your job now: write the closing incident report of a security exercise (the Fraud Lab) in at most 170 words.
+Say what each suspect agent tried, how the system stopped it or limited the damage, what it cost, and what the system cannot do.
+Use only the facts provided and write every number as digits exactly as given (for example 0.013 USDC, never in words). Cover every suspect, the replay result and the ledger and reconciliation check. Do not add numbers that are not in the facts. Be honest: a payment that already settled on chain cannot be recovered; the system only caps and flags it.
+Plain text only: no markdown, no asterisks, no headings.`;
+
 const ANSWER_SYSTEM = `${ROLE}
 Your job now: answer the user's question about the current task using only the facts provided. If the facts do not contain the answer, say you do not know.
 If the user asks you to buy, pay or change something, explain that a new purchase starts only when they submit a task. Keep answers under 120 words. Plain text only: no markdown or asterisks.`;
@@ -137,6 +143,35 @@ function createBeacon({ llm, log } = {}) {
     }
   }
 
+  /** The closing report of a Fraud Lab run. Template without a model; the model's version is used only when its numbers are grounded. */
+  function templatedLabReport(f) {
+    const s = f.scoreboard;
+    const lines = [`Fraud Lab report. I tried ${s.suspectsTried} suspect agents (${s.attacks} attacks) one at a time through the real payment path.`];
+    const blockedNames = f.steps.filter((x) => x.outcome === 'blocked' && x.suspect !== 'Replay').map((x) => `${x.suspect}${x.ruleId ? ` (${x.ruleId})` : ''}`);
+    if (blockedNames.length) lines.push(`Refused before I signed anything: ${blockedNames.join('; ')}. Nothing was paid. A buyer with no checks would have signed requests with a face value of ${f.exposureUsdc} USDC.`);
+    if (s.failedNotCharged) lines.push(`Failed without charging me: ${s.failedNotCharged}. The reserved budget was released.`);
+    if (s.paidThenRejected) lines.push(`Took a payment and returned junk: ${s.paidThenRejected}. I paid ${s.junkPaidUsdc} USDC, discarded the answer, flagged the seller and excluded it. That loss is capped at one call and cannot be recovered.`);
+    if (s.controlPaid) lines.push(`Control: the honest agent was paid and validated, so legitimate buying still works.`);
+    if (f.replay) lines.push(`Replay: ${f.replay.blocked ? 'blocked' : 'NEEDS ATTENTION'}. ${f.replay.winners} of the five simultaneous requests got through, and there were ${f.replay.transfers ?? 'an unverified number of'} transfers on chain for 2 signed payments.`);
+    lines.push(`Spent on purchases: ${s.spentUsdc} USDC. Ledger chain verified: ${f.verification.chainOk ? 'yes' : 'NO'}. Reconciliation: ${f.verification.reconcile.status}${f.verification.reconcile.ledgerTotalUsdc ? ` (ledger ${f.verification.reconcile.ledgerTotalUsdc} USDC, chain ${f.verification.reconcile.chainTotalUsdc} USDC)` : ''}.`);
+    lines.push('Not covered: a stolen private key, a compromised facilitator, and wrong but plausible content.');
+    return lines.join('\n');
+  }
+
+  async function labReport(f) {
+    const fallback = { text: templatedLabReport(f), source: 'rules' };
+    if (!useModel) return fallback;
+    try {
+      const text = await llm.generateText({ name: 'lab-report', system: LAB_SYSTEM, user: quote('lab facts', f), maxOutputTokens: 450 });
+      if (!numbersGrounded(text, JSON.stringify(f)) || !text.includes(f.scoreboard.spentUsdc)) { warn('lab report: ungrounded or incomplete, using the template'); return fallback; }
+      return { text, source: 'model' };
+    } catch (e) {
+      if (!(e instanceof LlmUnavailable || e instanceof LlmInvalid)) throw e;
+      warn('lab report: model unavailable, using the template', e);
+      return { ...fallback, fallback: why(e) };
+    }
+  }
+
   /** Rule-based answers: enough to be useful with no model. */
   function ruleAnswer(question, f) {
     const q = question.toLowerCase();
@@ -184,7 +219,7 @@ function createBeacon({ llm, log } = {}) {
     }
   }
 
-  return { plan, choose, summarize, answer, templatedSummary, ruleAnswer, usesModel: useModel, usage: () => (useModel && llm.usage ? llm.usage() : null) };
+  return { plan, choose, summarize, answer, labReport, templatedLabReport, templatedSummary, ruleAnswer, usesModel: useModel, usage: () => (useModel && llm.usage ? llm.usage() : null) };
 }
 
 /**
@@ -210,4 +245,35 @@ function factsFromTask(t, earlier = []) {
   };
 }
 
-module.exports = { createBeacon, factsFromTask };
+/** Facts about a Fraud Lab run for the closing report. Amounts appear as USDC text so a model can copy them. */
+function factsFromLab({ results, totals, verification, replay, cfg }) {
+  const clip = (s, n) => String(s ?? '').slice(0, n);
+  const count = (o) => results.filter((r) => r.outcome === o).length;
+  const sum = (rows, k) => rows.reduce((a, r) => a + BigInt(r[k] || 0), 0n);
+  const attacks = results.filter((r) => r.id !== 'control');
+  const blocked = attacks.filter((r) => r.outcome === 'blocked' && r.id !== 'replay');
+  const rejected = results.filter((r) => r.outcome === 'rejected');
+  const rec = verification?.reconcile ?? { status: 'unverified' };
+  return {
+    steps: results.map((r) => ({ suspect: clip(r.suspect, 60), outcome: r.outcome, ruleId: r.ruleId ?? null, reason: clip(r.reason, 160), paidUsdc: fmt(r.paid || 0), wouldHavePaidUsdc: r.wouldHavePaid ? fmt(r.wouldHavePaid) : null })),
+    scoreboard: {
+      suspectsTried: new Set(results.map((r) => r.id)).size - (results.some((r) => r.id === 'control') ? 1 : 0),
+      attacks: attacks.length,
+      blockedBeforeSigning: blocked.length,
+      paidThenRejected: rejected.length,
+      failedNotCharged: count('failed'),
+      controlPaid: results.some((r) => r.id === 'control' && r.outcome === 'paid'),
+      junkPaidUsdc: fmt(sum(rejected, 'paid')),
+      spentUsdc: fmt(totals.spent),
+      probationCapUsdc: fmt(cfg?.probationSpendCap ?? 0),
+    },
+    exposureUsdc: fmt(sum(blocked, 'wouldHavePaid')),
+    replay: replay ? { blocked: !!replay.pass, winners: replay.winners, transfers: replay.transfers ?? null, usedBeaconWallet: !!replay.usedBeaconWallet } : null,
+    verification: {
+      chainOk: !!verification?.chainOk,
+      reconcile: { status: rec.status, ledgerTotalUsdc: rec.ledgerTotal !== undefined ? fmt(rec.ledgerTotal) : null, chainTotalUsdc: rec.chainTotal !== undefined ? fmt(rec.chainTotal) : null },
+    },
+  };
+}
+
+module.exports = { createBeacon, factsFromTask, factsFromLab };

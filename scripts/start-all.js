@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { SERVICES, buildEnv, ROOT } = require('./lib/services');
 
-const only = process.argv.includes('--sellers') ? new Set(SERVICES.filter((s) => /^(atlas|tremor|brief|overquote|redirect|hollow|offline)$/.test(s.name)).map((s) => s.name)) : null;
+const only = process.argv.includes('--sellers') ? new Set(SERVICES.filter((s) => /^(atlas|tremor|brief|overquote|redirect|hollow|offline|shapeshifter)$/.test(s.name)).map((s) => s.name)) : null;
 
 // --public: demo mode for the judging run. Needs PUBLIC_BASE_URL (the tunnel URL) and refuses private endpoints (D-29).
 const PUBLIC = process.argv.includes('--public');

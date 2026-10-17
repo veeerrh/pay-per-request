@@ -44,10 +44,16 @@ Short version: the agents now use Gemini, Beacon has a chat, the fraud demo is s
 - Chat Q&A can add events after `done`, so keep polling the chat endpoint, not the events one, for answers.
 
 ### Fraud Lab (separate tab)
-- `GET /api/attack` lists the cases; `POST /api/attack/:case` runs one. Cases: `price-lie` (Overquote), `payto-lie` (Redirect), `junk` (Hollow), `failure` (Offline), `replay5`, `budget-race`, `invariant`.
-- Each result shows: expected outcome, actual verdict, rule id (for example `M-17`, `S-06`), amount paid (usually 0), tx link if any, and the ledger row it created.
-- Label clearly: "Scripted agents, no LLM. Every payment goes through the real Beacon guard."
-- Enabled when `GET /api/config` `attackPanel` is true. Attack calls are limited to 10 per minute.
+Beacon tries each scripted suspect one at a time and explains in its chat what went wrong and why it did not hire the agent. It is one run, shown like a task: same chat, events, polling and history.
+
+- `GET /api/lab` returns `agents[]` for the cards: `id, title, suspect, tactic, layer` (Before signing / After paying / Liveness / Seller side / Control), `rules[], expected, cost`, and for Shapeshifter `subs[]` (six one-term lies). Order: Bait-and-Switch (Overquote), Redirector, Shapeshifter, Ghost (Hollow), Vanishing agent (Offline), Control (honest Atlas), Replay attacker.
+- `POST /api/lab/run` with optional `{ cases: [ids], budget: "50000" }` returns `{ taskId }`. Then use the normal task routes: `GET /api/tasks/:id/events` (or `/poll`), `/api/tasks/:id/chat`, `GET /api/tasks/:id`. One lab run at a time (409 `lab_running`).
+- **Events:** `lab_step` (`key, index, total, agentId, title, suspect, sub, layer, status: running|done`; on `done` also `outcome` = `blocked | failed | rejected | paid | pending | attention`, `ruleId, reason, paidUsdc, wouldHavePaidUsdc, diffs[]` (claim vs reality: `field, listed, actual`), `reputation {before, after}`, `txHash`, and for the replay `lanes[]` = the five parallel requests with `status` and the `layer` that decided it). Also `ledger`, `metrics`, `chat`, then `done` with `result {kind: 'lab', steps[], scoreboard, verification, beaconSummary}`.
+- **Chat kinds for the lab:** `plan`, `select` ("Suspect 3 of 12…"), `alert` (what went wrong and how it was stopped, with `severity` = `blocked | warn`), `paid` (control), `notice` (skipped suspects, unfunded replay wallet, model fallback), `info` (proof check) and a closing `incident` report. Show `blocked` alerts in red, `warn` in amber, `ok` in green.
+- **Suggested layout:** a vertical timeline of suspects. Each shows the claim-vs-reality diff (highlight the lie), the rule that fired, "signed? paid? tx?", reputation before to after, and "a buyer with no checks would have paid X" (computed, label it). The replay shows five parallel lanes. A scoreboard at the end: `scoreboard` (blockedBeforeSigning, paidThenRejected, failedNotCharged, junkPaidUsdc, spentUsdc) plus `verification` (ledger chain OK, reconcile matched). The Beacon chat sits beside it and streams the same story in words.
+- Label clearly: "Scripted agents, no LLM. Every payment goes through the real Beacon guard." The closing report may be model-written; `beaconSummary.source` says `model` or `rules`.
+- Honest limits are part of the demo: a paid-then-junk seller is capped and flagged, not refunded. The Ghost's 0.008 USDC is the one real loss in a full run.
+- The older single-case endpoints (`GET /api/attack`, `POST /api/attack/:case`) still exist; the lab replaces them for the page. Enabled when `GET /api/config` `attackPanel` is true.
 
 ## 3. Limits and edge cases to design for
 - **Chat limit:** 12 messages per minute; **tasks:** 6 per minute; show a friendly message on HTTP 429.

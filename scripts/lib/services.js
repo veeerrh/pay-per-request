@@ -18,6 +18,8 @@ const SERVICES = [
   seller('redirect', 4022, 'fixtures/redirect.js'),
   seller('hollow', 4023, 'fixtures/hollow.js'),
   seller('offline', 4024, 'fixtures/offline.js'),
+  // Lab-only vendor: not in the registry and not routed through the gateway; Beacon reaches it on loopback from the Fraud Lab.
+  { name: 'shapeshifter', port: 4025, script: 'packages/sellers/src/fixtures/shapeshifter.js', env: { PORT: '4025', PAY_TO: addresses.lab?.shapeshifter }, allow: BASE },
   // Added in later milestones: the registry holds no key; Beacon is the only process that receives one.
   { name: 'registry', port: 4000, script: 'packages/registry/src/server.js', env: { PORT: '4000' }, allow: BASE, optional: true },
   { name: 'beacon', port: 4100, script: 'packages/buyer/src/server.js', env: { PORT: '4100' }, allow: [...BASE, 'BEACON_PRIVATE_KEY', 'OPERATOR_TOKEN', 'ENABLE_ATTACK_PANEL', 'MAX_TASK_BUDGET', 'LEDGER_WRITERS', 'REPLAY_PRIVATE_KEY', 'LOG_RANGE', 'GEMINI_API_KEY', 'GEMINI_MODEL', 'GEMINI_FALLBACK_MODELS', 'BEACON_GEMINI_API_KEY', 'BEACON_LLM', 'LLM_MODE'], optional: true },
