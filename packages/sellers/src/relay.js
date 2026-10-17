@@ -38,16 +38,25 @@ function registryTremor({ registryUrl, fetchImpl = fetch, now = () => Date.now()
  */
 function createHirer(deps) {
   let seq = 0;
+  const opened = new Set();
   return async function hire(country, { days, minMag, taskId }) {
     const t = await deps.tremorListing();
-    const requestId = `${taskId}-${++seq}`;
-    const result = await g.pay({ store: deps.store, budget: deps.budget, signer: deps.signer, cfg: deps.cfg, chain: deps.chain, log: deps.log }, {
-      requestId, taskId, seller: { id: t.id, name: t.name, category: t.category },
-      listing: { price: t.price, payTo: t.payTo, network: g.NETWORK, asset: g.USDC_ADDRESS }, listingHash: t.listingHash,
-      url: `${t.endpoint}?country=${encodeURIComponent(country)}&days=${days}&minMag=${minMag}`,
-      validate: g.makeValidator({ outputSchema: t.outputSchema, sanity: 'tremor', context: { country, days, minMag } }),
-      meta: { why: `Relay hires ${t.name} for ${country}`, source: 'relay' },
-    });
+    // One hard spending cap per buyer request (at most two Tremor calls), opened once however many countries the request has.
+    if (!opened.has(taskId)) { deps.budget.openTask(taskId, t.price * 2n); opened.add(taskId); }
+    // A purchase that FAILED is safe to repeat once: "failed" means the signed authorisation is confirmed unused on chain and nothing was
+    // charged (the public facilitator sometimes answers a transient 402). Refused, rejected and pending outcomes are never retried.
+    let result;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const requestId = `${taskId}-${++seq}`;
+      result = await g.pay({ store: deps.store, budget: deps.budget, signer: deps.signer, cfg: deps.cfg, chain: deps.chain, log: deps.log, ...(deps.fetch ? { fetch: deps.fetch } : {}) }, {
+        requestId, taskId, seller: { id: t.id, name: t.name, category: t.category },
+        listing: { price: t.price, payTo: t.payTo, network: g.NETWORK, asset: g.USDC_ADDRESS }, listingHash: t.listingHash,
+        url: `${t.endpoint}?country=${encodeURIComponent(country)}&days=${days}&minMag=${minMag}`,
+        validate: g.makeValidator({ outputSchema: t.outputSchema, sanity: 'tremor', context: { country, days, minMag } }),
+        meta: { why: `Relay hires ${t.name} for ${country}`, source: 'relay' },
+      });
+      if (result.status !== 'failed') break;
+    }
     if (result.status !== 'paid') throw new Error(`${t.name} ${result.status} (${result.ruleId}): ${result.reason}`);
     return { data: result.output, paid: result.paid, txHash: result.txHash, seller: t.name };
   };
@@ -123,11 +132,7 @@ function createRelayFromEnv(env = process.env) {
   const registryUrl = env.REGISTRY_URL || 'http://localhost:4000';
   const tremorListing = registryTremor({ registryUrl });
   const base = createHirer({ store, budget, signer, cfg, chain, log, tremorListing });
-  const hire = async (country, p) => {
-    const t = await tremorListing();
-    budget.openTask(p.taskId, t.price * 2n); // a hard cap for this one request: at most two Tremor calls
-    return base(country, p);
-  };
+  const hire = base;
   const unavailable = () => {
     // Same wallet floor Beacon uses: do not start a purchase the wallet could not cover (M-58).
     const need = BigInt(cfg.balanceFloor) + 2n * 2000n;

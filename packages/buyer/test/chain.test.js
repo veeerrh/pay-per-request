@@ -118,7 +118,6 @@ describe('Relay hires through the same payment guard Beacon uses', () => {
 
   it('07 an honest purchase settles and is recorded in Relay\'s own ledger', async () => {
     const r = rig(tremor());
-    r.budget.openTask('relay-a', 4000n);
     const out = await r.hire('India', { days: 7, minMag: 4.5, taskId: 'relay-a' });
     expect(out.paid).toBe(2000n);
     expect(out.txHash).toMatch(/^0x/);
@@ -126,10 +125,33 @@ describe('Relay hires through the same payment guard Beacon uses', () => {
     expect(r.store.listEntries().find((e) => e.sellerId === 'tremor')).toMatchObject({ status: 'paid', source: 'relay' });
   });
 
+  it('07b one buyer request with two countries opens its spending cap once and buys both (regression)', async () => {
+    const r = rig(tremor());
+    const a = await r.hire('India', { days: 7, minMag: 4.5, taskId: 'relay-two' });
+    const b = await r.hire('China', { days: 7, minMag: 4.5, taskId: 'relay-two' });
+    expect([a.paid, b.paid]).toEqual([2000n, 2000n]);
+    expect(r.budget.totals('relay-two').spent).toBe(4000n);
+  });
+
+  it('07c a failed purchase (authorisation unused, nothing charged) is repeated once; a second failure is reported', async () => {
+    const mk = (failures) => {
+      let n = 0;
+      const base = rig(tremor());
+      const flaky = async (url, init) => { const paidReq = !!new Headers(init?.headers).get('payment-signature'); if (paidReq && n++ < failures) return new Response('upstream hiccup', { status: 500 }); return fetch(url, init); };
+      return { ...base, hire: createHirer({ store: base.store, budget: base.budget, signer: testSigner(), cfg, chain, log: () => undefined, tremorListing: tremor(), fetch: flaky }) };
+    };
+    const once = mk(1);
+    const ok = await once.hire('India', { days: 7, minMag: 4.5, taskId: 'relay-retry' });
+    expect(ok.paid).toBe(2000n);
+    expect(once.store.listEntries().map((e) => e.status)).toEqual(['failed', 'paid']); // one failed attempt (not charged), then the paid one
+    const twice = mk(2);
+    await expect(twice.hire('India', { days: 7, minMag: 4.5, taskId: 'relay-retry2' })).rejects.toThrow(/failed/);
+    expect(twice.store.listEntries().every((e) => e.paid === '0')).toBe(true);
+  });
+
   it('08 a price lie by the seller Relay hires is refused before anything is signed', async () => {
     const base = await tremor()();
     const r = rig(async () => ({ ...base, price: 1000n })); // listing says 1000, Tremor really asks 2000
-    r.budget.openTask('relay-b', 4000n);
     await expect(r.hire('India', { days: 7, minMag: 4.5, taskId: 'relay-b' })).rejects.toThrow(/M-17/);
     expect(r.store.listEntries()[0]).toMatchObject({ status: 'refused', paid: '0' });
   });
@@ -137,7 +159,6 @@ describe('Relay hires through the same payment guard Beacon uses', () => {
   it('09 a payee mismatch is refused too', async () => {
     const base = await tremor()();
     const r = rig(async () => ({ ...base, payTo: addresses.sellers.redirect }));
-    r.budget.openTask('relay-c', 4000n);
     await expect(r.hire('India', { days: 7, minMag: 4.5, taskId: 'relay-c' })).rejects.toThrow(/S-06/);
   });
 });
