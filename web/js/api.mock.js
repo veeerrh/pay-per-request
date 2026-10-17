@@ -27,6 +27,6 @@ export function mock(live) {
     tasks: () => wait([]), task: off, createTask: off, taskChat: () => wait({ messages: [], status: 'stopped', usesModel: false }), chat: off,
     ledger: () => wait(LEDGER), verify: () => wait({ ok: true, rows: 1, headHash: 'mock'.padEnd(64, '0') }),
     reconcile: () => wait({ ok: false, status: 'unverified', ledgerTotal: '0', chainTotal: '0', differences: [], error: 'mock data, nothing to compare' }),
-    reputation: () => wait([]), newSession: off, attack: off, attacks: () => wait([]),
+    reputation: () => wait([]), newSession: off, attack: off, attacks: () => wait([]), lab: off, labRun: off,
   };
 }

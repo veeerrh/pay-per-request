@@ -7,7 +7,7 @@ export function newTaskState(id) {
   return {
     id, status: 'running', stageIdx: -1, events: [], ledger: new Map(), outputs: [], budget: '0', spent: '0', reserved: '0', remaining: '0',
     paidCalls: 0, services: [], result: null, notice: '', startedAt: null, endedAt: null, lastEventId: 0,
-    params: null, choices: [], notes: [], chatTick: 0,
+    params: null, choices: [], notes: [], chatTick: 0, lab: new Map(),
   };
 }
 
@@ -27,6 +27,7 @@ export function applyEvent(t, ev) {
     case 'choice': t.choices.push({ category: ev.category, sellerId: ev.sellerId, seller: ev.seller, reason: ev.reason, source: ev.source }); break;
     case 'note': t.notes.push({ agent: ev.agent, category: ev.category, text: ev.text }); break;
     case 'chat': t.chatTick += 1; break; // the chat panel reads the feed from GET /api/tasks/:id/chat
+    case 'lab_step': t.lab.set(ev.key, { ...(t.lab.get(ev.key) || {}), ...ev, total: ev.total ?? t.lab.get(ev.key)?.total }); break;
     case 'blocked': t.status = 'blocked'; t.notice = ev.notice; t.endedAt = Date.parse(ev.at); break;
     case 'done': t.status = ev.status; t.notice = ev.notice || ''; t.result = ev.result; t.endedAt = Date.parse(ev.at); break;
     default: break;

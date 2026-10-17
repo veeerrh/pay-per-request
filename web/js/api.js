@@ -43,6 +43,8 @@ const live = {
   reconcile: () => call('POST', '/api/reconcile', {}),
   reputation: () => call('GET', '/api/reputation'),
   newSession: (token) => call('POST', '/api/session/new', {}, { 'x-operator-token': token }),
+  lab: () => call('GET', '/api/lab'),
+  labRun: (body) => call('POST', '/api/lab/run', body),
   attacks: () => call('GET', '/api/attack'),
   attack: (name, body = {}) => call('POST', `/api/attack/${encodeURIComponent(name)}`, body),
 };
