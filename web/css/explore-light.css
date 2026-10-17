@@ -361,3 +361,8 @@ ul.bullets.brief li { line-height: 1.45; }
 .lab-refunds { display: flex; flex-direction: column; gap: 6px; border-top: 1px dashed var(--border); padding-top: 8px; }
 .lab-refunds-h { font-weight: 650; display: flex; align-items: center; gap: 6px; }
 .lab-refund-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+/* Test wallet panel: one font, black text. The Faucet button keeps its own style. */
+.sidebar .wallet-panel :is(.wp-head h2, .badge-net, .wp-addr code, .wp-bal, .wp-unit, .wp-note, .icon-btn) { font-family: var(--font); color: #000; }
+.sidebar .wallet-panel .wp-head h2 { color: #000; }
+.sidebar .wallet-panel .wp-note .icon { color: #000; }
