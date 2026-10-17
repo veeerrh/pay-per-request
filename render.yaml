@@ -1,5 +1,6 @@
-# Render blueprint: the registry and all sellers as one free web service. The buyer (Beacon) and every wallet key stay on the operator's machine.
-# Secrets are never stored here: Render asks for them in its dashboard (sync: false).
+# Render blueprint: ONE free web service that serves the registry, all sellers and (full mode) Beacon with its dashboard.
+# Secrets are never stored here: Render asks for them in its dashboard (sync: false) or generates them (OPERATOR_TOKEN).
+# Use testnet wallets only, and rotate BEACON_PRIVATE_KEY and OPERATOR_TOKEN after judging.
 services:
   - type: web
     name: agentmarket-public
@@ -13,6 +14,10 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
+      - key: RENDER_FULL
+        value: "true"
+      - key: ENABLE_ATTACK_PANEL
+        value: "true"
       - key: NETWORK
         value: eip155:84532
       - key: CHAIN_ID
@@ -23,6 +28,12 @@ services:
         value: https://x402.org/facilitator
       - key: RPC_URL
         value: https://sepolia.base.org
+      - key: OPERATOR_TOKEN
+        generateValue: true
+      - key: BEACON_PRIVATE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
       - key: ATLAS_GEMINI_API_KEY
         sync: false
       - key: TREMOR_GEMINI_API_KEY
