@@ -24,6 +24,7 @@ async function show(name, first) {
   setSidebar(false); closeProfile();
   if (!first && current !== key) window.scrollTo({ top: 0 });
   current = key;
+  document.body.dataset.route = key;
   await page.mount($(`#page-${key}`));
 }
 const route = (first = false) => show(location.hash.replace('#', '').split('?')[0], first);

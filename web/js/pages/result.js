@@ -14,7 +14,8 @@ export function mountResult(card, getTask) {
     const panel = $('[role="tabpanel"]', card);
     if (tab === 'final') {
       const a = r.assessment || {};
-      panel.innerHTML = `
+      const rep = r.beaconSummary?.text ? `<div class="result-section beacon-report"><div class="eyebrow">Beacon's report${r.beaconSummary.source === 'model' ? ' · AI-written' : ' · rule-based'}</div><p class="report-text">${esc(r.beaconSummary.text)}</p></div>` : '';
+      panel.innerHTML = `${rep}
         <div class="result-hero l-${esc(a.level)}">${icon(a.level === 'low' ? 'checkcircle' : 'alert')}<div><div class="eyebrow">Overall assessment</div><h3>${esc(a.title)}</h3><p class="muted">${esc(a.summary)}</p></div></div>
         <div class="result-section"><h3>Key evidence</h3>${r.evidence?.length ? `<ul class="bullets">${r.evidence.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>` : '<p class="muted">No validated evidence was collected.</p>'}</div>
         <div class="result-section"><h3>Sources used</h3>${r.sources?.length ? `<ul class="bullets">${r.sources.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>` : '<p class="muted">None.</p>'}</div>

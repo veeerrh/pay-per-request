@@ -7,6 +7,7 @@ export function newTaskState(id) {
   return {
     id, status: 'running', stageIdx: -1, events: [], ledger: new Map(), outputs: [], budget: '0', spent: '0', reserved: '0', remaining: '0',
     paidCalls: 0, services: [], result: null, notice: '', startedAt: null, endedAt: null, lastEventId: 0,
+    params: null, choices: [], notes: [], chatTick: 0,
   };
 }
 
@@ -22,6 +23,10 @@ export function applyEvent(t, ev) {
     case 'ledgerPatch': { const e = t.ledger.get(ev.id); if (e) Object.assign(e, ev.patch); break; }
     case 'metrics': Object.assign(t, { budget: ev.budget, spent: ev.spent, reserved: ev.reserved, remaining: ev.remaining, paidCalls: ev.paidCalls, services: ev.services }); break;
     case 'output': t.outputs.push({ call: ev.call, agent: ev.agent, status: ev.status, output: ev.output }); break;
+    case 'plan': t.params = ev.params; break;
+    case 'choice': t.choices.push({ category: ev.category, sellerId: ev.sellerId, seller: ev.seller, reason: ev.reason, source: ev.source }); break;
+    case 'note': t.notes.push({ agent: ev.agent, category: ev.category, text: ev.text }); break;
+    case 'chat': t.chatTick += 1; break; // the chat panel reads the feed from GET /api/tasks/:id/chat
     case 'blocked': t.status = 'blocked'; t.notice = ev.notice; t.endedAt = Date.parse(ev.at); break;
     case 'done': t.status = ev.status; t.notice = ev.notice || ''; t.result = ev.result; t.endedAt = Date.parse(ev.at); break;
     default: break;

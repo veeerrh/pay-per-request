@@ -4,6 +4,17 @@ import { api, MOCK } from '../api.js';
 import { app } from '../app.js';
 import { $, $$, esc, icon, formatUsdc, toUnits, CAT_ICON, CAT_LABEL, codePanel, dialogHead, openDialog, copyText, toast } from '../ui.js';
 
+// The scripted fraud vendors belong to the Fraud Lab, not the Live Market.
+const LAB_IDS = new Set(['overquote', 'redirect', 'hollow', 'offline']);
+// Preview agents are front-end only: nothing is registered, nothing can be hired, and no price or score is shown.
+const PREVIEW = [
+  { name: 'Quill', category: 'inference', description: 'Summarises long reports into short briefs for planners.' },
+  { name: 'Lumen', category: 'data', description: 'Looks up public weather and air-quality readings by region.' },
+  { name: 'Parcel', category: 'scraping', description: 'Collects public shipping and port-status pages for logistics teams.' },
+  { name: 'Sentinel', category: 'inference', description: 'Screens text for policy and safety issues before it is used.' },
+  { name: 'Meridian', category: 'data', description: 'Converts place names into coordinates and regions.' },
+  { name: 'Ledgerly', category: 'inference', description: 'Extracts line items and totals from invoice text.' },
+];
 const state = { list: [], status: 'loading', error: '', f: { q: '', cat: 'All', maxPrice: 100000, sort: 'recommended' } };
 
 function repOf(s) { return s.reputation || { attempts: 0, headline: null, score: 0.5, medianLatencyMs: null, status: 'probation' }; }
@@ -59,18 +70,33 @@ function card(s) {
     </div></article>`;
 }
 
+function previewCard(p) {
+  return `<article class="agent-card preview" aria-label="${esc(p.name)} (preview, not connected)">
+    <div class="agent-cover"><span class="cover-icon">${icon(CAT_ICON[p.category] || 'cpu')}</span></div>
+    <div class="agent-body">
+      <div class="badges"><span class="badge">${esc(CAT_LABEL[p.category] || p.category)}</span><span class="badge badge-preview">Preview</span></div>
+      <h3>${esc(p.name)}</h3>
+      <p class="desc">${esc(p.description)}</p>
+      <dl class="metrics"><div><dt>Success</dt><dd>–</dd></div><div><dt>Median</dt><dd>–</dd></div><div><dt>Calls</dt><dd>–</dd></div></dl>
+    </div>
+    <div class="agent-foot"><div class="price"><small>Per call</small><strong>Soon</strong></div>
+      <div class="foot-actions"><button type="button" class="btn btn-secondary btn-sm" disabled>Not connected</button></div></div></article>`;
+}
+
 function renderGrid(root) {
   const grid = $('#agent-grid', root), count = $('#market-count', root);
   if (state.status === 'loading') { count.textContent = 'Loading agents…'; grid.innerHTML = Array.from({ length: 6 }, () => '<div class="skeleton" aria-hidden="true"></div>').join(''); return; }
   if (state.status === 'error') { count.textContent = ''; grid.innerHTML = `<div class="card empty wide">${icon('alert')}<h3>Could not load agents</h3><p>${esc(state.error)}. Nothing was charged.</p><button class="btn btn-primary" type="button" data-retry>${icon('refresh')}Try again</button></div>`; return; }
   const rows = visible();
-  count.textContent = `Showing ${rows.length} of ${state.list.length} agents`;
-  grid.innerHTML = rows.length ? rows.map(card).join('') : `<div class="card empty wide">${icon('search')}<h3>No agents match</h3><p>Try a different search, raise the max price, or clear the filters.</p><button class="btn btn-secondary" type="button" data-clear>Clear filters</button></div>`;
+  const f = state.f, q = f.q.trim().toLowerCase();
+  const previews = PREVIEW.filter((p) => (f.cat === 'All' || p.category === f.cat.toLowerCase()) && (!q || `${p.name} ${p.description} ${p.category}`.toLowerCase().includes(q)));
+  count.textContent = `Showing ${rows.length} of ${state.list.length} agents${previews.length ? `, plus ${previews.length} preview${previews.length > 1 ? 's' : ''}` : ''}`;
+  grid.innerHTML = rows.length || previews.length ? rows.map(card).join('') + previews.map(previewCard).join('') : `<div class="card empty wide">${icon('search')}<h3>No agents match</h3><p>Try a different search, raise the max price, or clear the filters.</p><button class="btn btn-secondary" type="button" data-clear>Clear filters</button></div>`;
 }
 
 async function load(root) {
   state.status = 'loading'; renderGrid(root);
-  try { state.list = await api.services(); state.status = 'ready'; } catch (e) { state.status = 'error'; state.error = e.message; }
+  try { state.list = (await api.services()).filter((s) => !LAB_IDS.has(s.id)); state.status = 'ready'; } catch (e) { state.status = 'error'; state.error = e.message; }
   renderGrid(root);
 }
 
@@ -161,7 +187,7 @@ function registerDialog(root) {
 
 export function mountMarket(root) {
   root.innerHTML = `
-    <div class="section-head"><h2 id="market-h">Explore Agents</h2><p class="muted">Agents provide data, inference, and scraping services. Pay only for the calls you make.</p></div>
+    <div class="section-head"><h2 id="market-h">Agents on the market</h2><p class="muted">Agents provide data, inference, and scraping services. Pay only for the calls you make.</p></div>
     <div class="toolbar" role="search" aria-label="Filter agents">
       <div class="search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><label class="sr-only" for="search-input">Search agents or services</label><input id="search-input" class="input" type="search" placeholder="Search agents or services…" autocomplete="off"></div>
       <div class="seg" id="cat-filter" role="group" aria-label="Category">${['All', 'Data', 'Inference', 'Scraping'].map((c) => `<button type="button" data-cat="${c}" aria-pressed="${c === 'All'}">${c}</button>`).join('')}</div>
