@@ -4,6 +4,7 @@ const g = require('@di06/guard');
 const { buildPlan, estimateMin, PlanError } = require('./planner');
 const { buildResult, fmt } = require('./reporter');
 const { createBeacon, factsFromTask } = require('./beacon');
+const { createApprovals } = require('./approvals');
 
 /**
  * ctx: { store, budget, signer, cfg, chain, listings: () => Promise<Listing[]>, log, now? }
@@ -40,6 +41,9 @@ async function runTask(ctx, req, emit = () => {}) {
     emit({ type: 'note', agent, category, text: t, at: new Date().toISOString() });
     say(`${agent} adds: ${t}`, 'agent');
   };
+  const approvals = ctx.approvals || createApprovals();
+  const approveAbove = req.approveAbove ?? null; // units; null means no approval needed
+  const askedAbout = new Map(); // seller id -> the pending or settled approval question for this task
   const ledgerRows = [];
   let seq = 0;
   let paidCalls = 0;
@@ -98,6 +102,25 @@ async function runTask(ctx, req, emit = () => {}) {
     act('select', `${c.name} selected for the ${c.category} step: ${c.why}.`);
     if (preferred.get(c.category) !== c.id) say(`Trying ${c.name} for the ${c.category} step next (${c.why}).`, 'select');
     const r = build(c);
+    // Human approval (M-23, M-57): decided BEFORE the guard is asked to do anything, so nothing is reserved or signed while waiting.
+    // A decline, or no answer in time, is a refusal by policy: nothing is signed, nothing is paid, and the seller's reputation is untouched.
+    if (approveAbove !== null && c.price > approveAbove) {
+      // One question per seller per task: the answer covers that seller's remaining calls (the budget cap still applies), and
+      // parallel calls to the same seller wait on the same question instead of asking again.
+      if (!askedAbout.has(c.id)) {
+        say(`${c.name} costs up to ${fmt(c.price)} USDC per call, above your approval limit of ${fmt(approveAbove)} USDC. I am waiting for your decision (${Math.round(approvals.timeoutMs / 1000)} seconds, then I decline).`, 'pending');
+        askedAbout.set(c.id, approvals.request(taskId, { sellerId: c.id, seller: c.name, category: c.category, priceUnits: c.price, thresholdUnits: approveAbove }, emit)
+          .then((d) => { if (d === 'approved') say(`Approved: I will hire ${c.name} for this task (up to ${fmt(c.price)} USDC per call).`, 'info'); return d; }));
+      }
+      const decision = await askedAbout.get(c.id);
+      if (decision !== 'approved') {
+        const why = decision === 'expired' ? `no answer within ${Math.round(approvals.timeoutMs / 1000)} seconds, so it was declined` : 'you declined';
+        const declined = { requestId, status: 'refused', verdict: 'REFUSE', ruleId: 'M-57', reason: `${why}: ${c.name} is above your approval limit of ${fmt(approveAbove)} USDC`, asked: c.price, paid: 0n, latencyMs: 0, txHash: null, signed: false };
+        act('refused', `${c.name} not approved: ${declined.reason}`);
+        say(`Not approved: ${declined.reason}. Nothing was signed or paid.`, 'refused');
+        return declined;
+      }
+    }
     const result = await g.pay(deps, {
       requestId, taskId, seller: { id: c.id, name: c.name, category: c.category },
       listing: { price: c.price, payTo: c.payTo, network: g.NETWORK, asset: g.USDC_ADDRESS }, listingHash: c.listingHash,

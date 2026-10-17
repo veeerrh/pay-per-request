@@ -15,12 +15,16 @@ const { createLlmFromEnv } = require('@di06/llm');
 const ROOT = path.join(__dirname, '..', '..', '..');
 const ser = (o) => JSON.parse(JSON.stringify(o, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)));
 const BUYER_NAME = 'Scout';
+const { createApprovals } = require('./approvals');
 
 const TaskReq = z.object({
   text: z.string().min(10, 'Describe the task (at least 10 characters).').max(1000, 'Task text is longer than 1000 characters.').optional(),
   budget: z.string().regex(/^\d{1,12}$/, 'budget must be a digit string of USDC units'),
   maxConcurrency: z.number().int().min(1).max(5).default(3),
   hired: z.array(z.string().regex(/^[a-z0-9-]{1,40}$/)).max(8).default([]),
+  // Optional human approval: any call listed above this many USDC units waits for a yes (M-23, M-57). Off when absent.
+  approveAbove: z.string().regex(/^\d{1,6}$/).optional(),
+  chain: z.boolean().default(false),
   directUrl: z.object({
     url: z.string().url().max(500),
     expectedPrice: z.string().regex(/^\d{1,6}$/),
@@ -38,6 +42,7 @@ function createServer(deps) {
   const beacon = deps.beacon || createBeacon({ log: deps.log });
   const maxTaskBudget = BigInt(deps.maxTaskBudget ?? 5_000_000);
   const state = { halted: false, haltReason: '', tasks: new Map(), seq: 0, balance: { at: 0, v: 0n } };
+  const approvals = deps.approvals || createApprovals({ timeoutMs: deps.approvalTimeoutMs ?? (Number(process.env.APPROVAL_TIMEOUT_MS) || 120_000) });
   const ruleSetHash = () => g.ruleSetHash(cfg, path.join(ROOT, 'packages', 'guard', 'dist', 'rules'));
 
   const app = express();
@@ -94,7 +99,7 @@ function createServer(deps) {
   app.get('/api/config', (_req, res) => {
     let hygiene = null;
     try { hygiene = JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'hygiene.json'), 'utf8')); } catch { /* not generated yet */ }
-    res.json({ rules: cfg, ruleSetHash: ruleSetHash(), network: g.NETWORK, usdc: g.USDC_ADDRESS, hygiene, buyer: BUYER_NAME, attackPanel: !!deps.extend, llm: { enabled: beacon.usesModel, usage: beacon.usage() } });
+    res.json({ rules: cfg, ruleSetHash: ruleSetHash(), network: g.NETWORK, usdc: g.USDC_ADDRESS, hygiene, buyer: BUYER_NAME, attackPanel: !!deps.extend, approvalTimeoutSeconds: Math.round(approvals.timeoutMs / 1000), llm: { enabled: beacon.usesModel, usage: beacon.usage() } });
   });
 
   const reputation = () => g.computeReputation(store.listEntries(), cfg, Date.now());
@@ -144,7 +149,7 @@ function createServer(deps) {
 
   // ---------- tasks ----------
   const snapshot = (t) => ({
-    id: t.id, text: t.text, budget: t.budget, maxConcurrency: t.maxConcurrency, hired: t.hired, kind: t.kind, status: t.status, stage: t.stage,
+    id: t.id, text: t.text, budget: t.budget, maxConcurrency: t.maxConcurrency, hired: t.hired, kind: t.kind, status: t.status, stage: t.stage, approveAbove: t.approveAbove ?? null, chain: !!t.chain,
     startedAt: t.startedAt, endedAt: t.endedAt, spent: t.spent, reserved: t.reserved, paidCalls: t.paidCalls, services: t.services, result: t.result, notice: t.notice, ...(t.kind === 'lab' ? { labSteps: t.labSteps } : {}),
   });
   function apply(t, ev) {
@@ -170,10 +175,10 @@ function createServer(deps) {
   }
 
   /** One place that makes a task record, so tasks, direct purchases and Fraud Lab runs share events, chat, polling and history. */
-  function newTaskRecord({ text, budget, maxConcurrency = 1, hired = [], kind = 'task' }) {
+  function newTaskRecord({ text, budget, maxConcurrency = 1, hired = [], kind = 'task', approveAbove = null, chain = false }) {
     const id = `t${++state.seq}_${crypto.randomBytes(3).toString('hex')}`;
     const t = {
-      id, text, budget, maxConcurrency, hired, kind,
+      id, text, budget, maxConcurrency, hired, kind, approveAbove, chain,
       status: 'running', stage: null, startedAt: new Date().toISOString(), endedAt: null, spent: '0', reserved: '0', paidCalls: 0, services: [], result: null, notice: '', events: [], subs: new Set(),
       lastEventId: 0, params: null, choices: [], ledger: [], chat: [], agentNotes: [], labSteps: [],
     };
@@ -196,21 +201,30 @@ function createServer(deps) {
       const bad = body.hired.filter((h) => !known.has(h));
       if (bad.length) return res.status(400).json({ error: 'invalid_task', issues: [{ path: 'hired', message: `Unknown agent id(s): ${bad.join(', ')}` }] });
     }
+    if (body.approveAbove !== undefined && (BigInt(body.approveAbove) < 1n || BigInt(body.approveAbove) > g.MAX_PRICE)) return res.status(400).json({ error: 'invalid_task', issues: [{ path: 'approveAbove', message: 'The approval limit must be between 0.000001 and 0.10 USDC.' }] });
     if (body.directUrl && !deps.allowPrivate && !body.directUrl.url.startsWith('https://')) return res.status(400).json({ error: 'invalid_task', issues: [{ path: 'directUrl.url', message: 'The URL must use https.' }] });
     if (body.directUrl && BigInt(body.directUrl.expectedPrice) > g.MAX_PRICE) return res.status(400).json({ error: 'invalid_task', issues: [{ path: 'directUrl.expectedPrice', message: 'Expected price is above the 0.10 USDC cap.' }] });
 
-    const t = newTaskRecord({ text: body.text ?? `Direct purchase from ${body.directUrl.url}`, budget: body.budget, maxConcurrency: body.maxConcurrency, hired: body.hired, kind: body.directUrl ? 'direct' : 'task' });
+    const t = newTaskRecord({ text: body.text ?? `Direct purchase from ${body.directUrl.url}`, budget: body.budget, maxConcurrency: body.maxConcurrency, hired: body.hired, kind: body.directUrl ? 'direct' : 'task', approveAbove: body.approveAbove ?? null, chain: body.chain });
     const id = t.id;
     res.status(202).json({ taskId: id });
-    const ctx = { store, budget, signer, cfg, chain, log: deps.log, listings: deps.listings, allowPrivate: deps.allowPrivate, beacon };
+    const ctx = { store, budget, signer, cfg, chain, log: deps.log, listings: deps.listings, allowPrivate: deps.allowPrivate, beacon, approvals };
     const em = (ev) => emit(t, ev);
     (body.directUrl
       ? runDirect(ctx, { taskId: id, budget: b, directUrl: { ...body.directUrl, expectedPrice: BigInt(body.directUrl.expectedPrice) } }, em)
-      : runTask(ctx, { taskId: id, text: body.text, budget: b, maxConcurrency: body.maxConcurrency, hired: body.hired }, em)
+      : runTask(ctx, { taskId: id, text: body.text, budget: b, maxConcurrency: body.maxConcurrency, hired: body.hired, approveAbove: body.approveAbove !== undefined ? BigInt(body.approveAbove) : null, chain: body.chain }, em)
     ).catch((e) => {
       deps.log?.('error', 'task crashed', { error: e.message });
       emit(t, { type: 'done', status: 'stopped', notice: 'The task stopped unexpectedly. Anything already signed is tracked in the ledger.', result: null, at: new Date().toISOString() });
-    }).finally(() => { checkChain(); if (t.status === 'running') { t.status = 'stopped'; for (const s of t.subs) s.end(); } });
+    }).finally(() => { approvals.cancelTask(id); checkChain(); if (t.status === 'running') { t.status = 'stopped'; for (const s of t.subs) s.end(); } });
+  });
+
+  // The person's answer to an approval request. Only an existing pending request can be answered, once.
+  app.post('/api/tasks/:id/approvals/:aid', light, (req, res) => {
+    const t = state.tasks.get(req.params.id);
+    if (!t) return res.status(404).json({ error: 'not_found' });
+    const r = approvals.decide(t.id, String(req.params.aid), req.body?.decision);
+    return r.ok ? res.json({ ok: true }) : res.status(409).json({ error: 'not_pending', detail: r.error });
   });
 
   app.get('/api/tasks', (_req, res) => res.json([...state.tasks.values()].map(snapshot).reverse()));
