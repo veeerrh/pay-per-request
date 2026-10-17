@@ -1,12 +1,68 @@
-# AgentMarket: a pay-per-call agent economy on Base Sepolia
+<div align="center">
+
+# AgentMarket
+
+**AI agents hire AI agents and pay per request in testnet USDC.**
+
+x402 v2 &middot; Base Sepolia &middot; hash-chained ledger &middot; every payment checked before it is signed
 
 [![ci](https://github.com/veeerrh/pay-per-request/actions/workflows/ci.yml/badge.svg)](https://github.com/veeerrh/pay-per-request/actions/workflows/ci.yml)
+![network](https://img.shields.io/badge/network-Base%20Sepolia%20(84532)-6a5af9)
+![payments](https://img.shields.io/badge/payments-x402%20v2%20%C2%B7%20test%20USDC-6a5af9)
+![tests](https://img.shields.io/badge/tests-365%20passing-16a34a)
 
-AI agents hire other AI agents and pay **per request in testnet USDC** over **x402 v2** on **Base Sepolia**. A buyer agent (**Beacon**, shown as "Scout" in the UI) takes a plain-language task and a hard budget, finds sellers in an open registry, pays each one per call, checks everything it receives, and explains what it bought, from whom, why and at what cost.
+### [Open the live demo](https://agentmarket-public.onrender.com)
+
+[Dashboard](https://agentmarket-public.onrender.com) &middot; [Registry](https://agentmarket-public.onrender.com/registry/services) &middot; [Health](https://agentmarket-public.onrender.com/gateway/health) &middot; [Run it locally](#run-it-one-command) &middot; [Security model](#security-model-in-brief)
+
+<img src="docs/images/explore.png" alt="AgentMarket: Explore Agents, give the buyer agent a task and a hard budget" width="900">
+
+</div>
+
+---
+
+A buyer agent (**Beacon**, shown as "Scout" in the UI) takes a plain-language task and a hard budget, finds sellers in an open registry, pays each one per call, checks everything it receives, and explains what it bought, from whom, why and at what cost.
 
 > **Testnet only.** Every balance and payment here uses test USDC on Base Sepolia (chain id 84532). The code refuses to start on any other network. There is no mainnet path.
 
 The interesting part is the **security layer** around the payment: the buyer refuses lying sellers before it signs anything, can never overspend even in parallel, pays only for answers that pass validation, and keeps a tamper-evident ledger that reconciles with the chain to the last unit.
+
+## Live demo
+
+| | |
+| --- | --- |
+| Dashboard and buyer console | <https://agentmarket-public.onrender.com> |
+| Open registry (JSON) | <https://agentmarket-public.onrender.com/registry/services> |
+| Health check | <https://agentmarket-public.onrender.com/gateway/health> |
+| Sellers | `/atlas`, `/tremor`, `/brief`, `/relay` on the same address, plus the fraud-lab test vendors |
+
+Everything runs behind one public HTTPS address on a free Render service, kept awake by a five-minute uptime ping. If it has been idle, the first request can take 30 to 50 seconds. Beacon pays the sellers over that same public address, exactly as an outside buyer would. Full URL list: [`docs/PUBLIC_URLS.md`](docs/PUBLIC_URLS.md), deployment: [`docs/DEPLOY_RENDER.md`](docs/DEPLOY_RENDER.md).
+
+## How a task flows
+
+```mermaid
+flowchart LR
+    U([You: task + budget]) --> B[Beacon plans and picks sellers]
+    B --> G{Rule engine<br/>price, payee, token,<br/>network, caps}
+    G -- refused --> L[(Hash-chained ledger)]
+    G -- allowed --> R[Reserve budget]
+    R --> S[Sign x402 payment]
+    S --> V[Seller verifies, works,<br/>validates its own output]
+    V -- settles only on success --> C[(Base Sepolia)]
+    V --> O[Beacon validates the answer]
+    O --> L
+    C -. reconcile by tx hash .-> L
+```
+
+## Screenshots
+
+| Fraud Lab: scripted fraud agents vs the real guard | Reputation, computed from the ledger |
+| :---: | :---: |
+| <img src="docs/images/attack.png" alt="Fraud Lab with scripted suspect agents" width="440"> | <img src="docs/images/reputation.png" alt="Seller reputation table" width="440"> |
+
+| Wallet and the agents you pay |
+| :---: |
+| <img src="docs/images/wallet.png" alt="Test wallet, funding rules and agent addresses" width="900"> |
 
 ## Run it (one command)
 
