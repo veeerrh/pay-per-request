@@ -68,6 +68,13 @@ function bind() {
       else if (t.dataset.action === 'open-faucet') faucet();
       else if (t.dataset.action === 'retry-load') { refreshWallet(); route(); }
     }
+    if (e.target.closest('[data-home]')) {
+      e.preventDefault();
+      const q = new URLSearchParams(location.search); q.delete('task');
+      history.replaceState(null, '', `${location.pathname}${q.toString() ? '?' + q : ''}#explore`);
+      setSidebar(false);
+      if (current === 'explore') { explore.reset(); window.scrollTo({ top: 0, behavior: 'smooth' }); } else { location.hash = '#explore'; explore.reset(); }
+    }
     if (e.target.closest('[data-copy-addr]') && app.wallet) copyText(app.wallet.address, 'Wallet address copied.');
     const cj = e.target.closest('[data-copy-json]');
     if (cj) copyText(cj.parentElement.querySelector('code').textContent, 'JSON copied to clipboard.');
@@ -76,6 +83,8 @@ function bind() {
 }
 
 async function init() {
+  // A reload always starts clean: drop any task id from the address so the empty Explore landing page opens.
+  { const q = new URLSearchParams(location.search); if (q.has('task')) { q.delete('task'); history.replaceState(null, '', `${location.pathname}${q.toString() ? '?' + q : ''}${location.hash}`); } if (!location.hash) history.replaceState(null, '', `${location.pathname}${location.search}#explore`); }
   bind();
   if (MOCK) $('#mock-banner').hidden = false;
   await refreshWallet();

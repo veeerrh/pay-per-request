@@ -1,7 +1,7 @@
 // Beacon's chat panel. One persistent panel: the feed comes from GET /api/tasks/:id/chat (the backend is the source of truth),
 // questions go to POST /api/chat. The chat explains and summarises; it can never start a purchase (that is POST /api/tasks only).
 import { api, MOCK, ApiError } from '../api.js';
-import { $, $$, esc, icon, fmtTime } from '../ui.js';
+import { $, $$, esc, icon, fmtTime, bulletsHtml } from '../ui.js';
 
 const MAX = 500;
 const CHIPS = ['Why did you pick these agents?', 'What did it cost?', 'What went wrong?', 'Show the results'];
@@ -40,7 +40,7 @@ export function mountBeaconChat(root, { getTaskId, isRunning }) {
     const user = m.role === 'user';
     return `<div class="bc-msg bc-k-${esc(kind)} ${user ? 'bc-user' : 'bc-beacon'}${m.severity ? ` bc-s-${esc(m.severity)}` : ''}">
       <div class="bc-meta"><span class="bc-kind">${esc(KIND[kind] || kind)}</span>${m.at ? `<time>${esc(fmtTime(m.at))}</time>` : ''}</div>
-      <div class="bc-text">${esc(m.text)}</div></div>`;
+      <div class="bc-text">${kind === 'summary' ? bulletsHtml(m.text) : esc(m.text)}</div></div>`;
   }
 
   function render(force = false) {

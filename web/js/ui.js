@@ -117,3 +117,12 @@ export const statusBadge = (s) => { const m = STATUS[s] || STATUS.pending; retur
 
 /** Sets an element width from JS (allowed by CSP, unlike a style attribute in markup). */
 export const setWidth = (el, pct) => { if (el) el.style.width = `${Math.max(0, Math.min(100, pct))}%`; };
+
+/** Turns a short report into bullet points: lines starting with "- " are used as they are, other prose is split into sentences. */
+export function bulletsHtml(text, max = 6) {
+  const raw = String(text || '').replace(/\r/g, '').split('\n').map((l) => l.trim()).filter(Boolean);
+  let items = raw.map((l) => l.replace(/^[-*\u2022]\s+/, ''));
+  if (raw.length <= 1 && !/^[-*\u2022]\s/.test(raw[0] || '')) items = String(text || '').split(/(?<=[.!?])\s+(?=[A-Z0-9])/).map((x) => x.trim()).filter(Boolean);
+  if (!items.length) return '';
+  return `<ul class="bullets brief">${items.slice(0, max).map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`;
+}

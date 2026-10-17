@@ -1,5 +1,5 @@
 // Result panel: Final Result, Service Breakdown, Raw Outputs (Appendix B result shape).
-import { esc, icon, formatUsdc, statusBadge, codePanel, CAT_ICON, wireTabs, $, $$ } from '../ui.js';
+import { esc, icon, formatUsdc, statusBadge, codePanel, CAT_ICON, wireTabs, bulletsHtml, $, $$ } from '../ui.js';
 
 export function mountResult(card, getTask) {
   let tab = 'final';
@@ -14,7 +14,7 @@ export function mountResult(card, getTask) {
     const panel = $('[role="tabpanel"]', card);
     if (tab === 'final') {
       const a = r.assessment || {};
-      const rep = r.beaconSummary?.text ? `<div class="result-section beacon-report"><div class="eyebrow">Beacon's report${r.beaconSummary.source === 'model' ? ' · AI-written' : ' · rule-based'}</div><p class="report-text">${esc(r.beaconSummary.text)}</p></div>` : '';
+      const rep = r.beaconSummary?.text ? `<div class="result-section beacon-report"><div class="eyebrow">Summary${r.beaconSummary.source === 'model' ? ' · AI-written' : ' · rule-based'}</div>${bulletsHtml(r.beaconSummary.text)}</div>` : '';
       panel.innerHTML = `${rep}
         <div class="result-hero l-${esc(a.level)}">${icon(a.level === 'low' ? 'checkcircle' : 'alert')}<div><div class="eyebrow">Overall assessment</div><h3>${esc(a.title)}</h3><p class="muted">${esc(a.summary)}</p></div></div>
         <div class="result-section"><h3>Key evidence</h3>${r.evidence?.length ? `<ul class="bullets">${r.evidence.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>` : '<p class="muted">No validated evidence was collected.</p>'}</div>

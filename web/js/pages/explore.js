@@ -8,6 +8,7 @@ import { newTaskState, applyEvent, stageState, elapsedMs, STAGES } from '../task
 import { mountMarket } from './market.js';
 import { mountResult, resultCardHtml } from './result.js';
 import { mountBeaconChat } from './beacon-chat.js';
+import { thumb } from '../thumbs.js';
 import { $, $$, esc, icon, formatUsdc, toUnits, fmtTime, fmtElapsed, setWidth, CAT_ICON, CAT_LABEL } from '../ui.js';
 
 const MAX_BUDGET = 5_000_000n;
@@ -43,15 +44,6 @@ const HTML = `
           </div>
           <p class="helper">${icon('shield', 'icon-sm')}<span>The budget is a <strong>hard spending cap</strong>. The agent reserves money before each payment and stops rather than exceed it. Testnet USDC only.</span></p>
           <div id="hired-tray" class="hired-tray" hidden></div>
-          <details class="direct" id="direct"><summary>Direct URL mode (buy one URL with an expected price)</summary>
-            <div class="form-stack">
-              <div><label class="label" for="d-url">Seller URL</label><input id="d-url" class="input" placeholder="https://…"></div>
-              <div class="grid-2"><div><label class="label" for="d-price">Expected price (USDC)</label><input id="d-price" class="input" inputmode="decimal" placeholder="0.001"></div>
-                <div><label class="label" for="d-cat">Category</label><select id="d-cat" class="select"><option value="data">Data</option><option value="inference">Inference</option><option value="scraping">Scraping</option></select></div></div>
-              <div><label class="label" for="d-payto">Expected payTo (optional)</label><input id="d-payto" class="input" placeholder="0x…"></div>
-              <p id="d-error" class="field-error" role="alert"></p>
-              <p class="muted">Every guard check still runs. Without a payTo, the payee cannot be compared with a listing, and the ledger says so.</p>
-            </div></details>
         </div>
       </details>
       <div class="examples" role="group" aria-label="Example tasks"><span id="examples"></span></div>
@@ -154,7 +146,8 @@ function renderAgents(root) {
     const notes = t.notes.filter((n) => n.agent === c.name);
     const rep = svc?.reputation;
     return `<article class="xp-agent">
-      <div class="xp-agent-head"><span class="cover-icon sm">${icon(CAT_ICON[c.category] || 'cpu')}</span><div><h3>${esc(c.name)}</h3><span class="muted">${esc(CAT_LABEL[c.category] || c.category)}</span></div><span class="badge ${state[1]}">${state[0]}</span></div>
+      <div class="xp-agent-thumb">${thumb(c.name, c.category)}</div>
+      <div class="xp-agent-head"><div><h3>${esc(c.name)}</h3><span class="muted">${esc(CAT_LABEL[c.category] || c.category)}</span></div><span class="badge ${state[1]}">${state[0]}</span></div>
       <dl class="xp-agent-facts"><div><dt>Price</dt><dd>${svc ? `${formatUsdc(svc.price)} USDC` : '–'}</dd></div><div><dt>Reputation</dt><dd>${rep ? Number(rep.score).toFixed(2) : '–'}</dd></div></dl>
       ${c.reason ? `<p class="xp-why"><strong>Why Beacon chose it</strong>${esc(c.reason)}</p>` : ''}
       ${notes.length ? `<div class="xp-notes"><strong>What it added</strong><ul>${notes.slice(0, 6).map((n) => `<li>${esc(n.text)}</li>`).join('')}</ul></div>` : ''}
@@ -223,34 +216,21 @@ function setErr(root, inputSel, errSel, msg) {
 }
 
 function collect(root) {
-  const direct = $('#direct', root).open && $('#d-url', root).value.trim();
   const text = $('#task-input', root).value.trim();
   const bStr = $('#budget-input', root).value.trim();
-  let tErr = '', bErr = '', dErr = '', units = null;
-  if (!direct) { if (!text) tErr = 'Describe a task before sending.'; else if (text.length < 10) tErr = 'Add a little more detail (at least 10 characters).'; }
+  let tErr = '', bErr = '', units = null;
+  if (!text) tErr = 'Describe a task before sending.'; else if (text.length < 10) tErr = 'Add a little more detail (at least 10 characters).';
   if (!bStr) bErr = 'Enter a budget in USDC.';
   else if (bStr.startsWith('-')) bErr = 'Budget cannot be negative.';
   else if ((units = toUnits(bStr)) === null) bErr = 'Use a number such as 0.050.';
   else if (units <= 0n) bErr = 'Budget must be greater than 0.';
   else if (units > MAX_BUDGET) bErr = `Demo limit is ${formatUsdc(MAX_BUDGET)} USDC per task.`;
   else if (app.wallet?.usdcBalance != null && units > BigInt(app.wallet.usdcBalance)) bErr = `Budget is more than your test balance (${formatUsdc(app.wallet.usdcBalance)}). Use the Faucet.`;
-  let body = null;
-  if (direct) {
-    const price = toUnits($('#d-price', root).value);
-    const payTo = $('#d-payto', root).value.trim();
-    if (!/^https?:\/\//.test(direct)) dErr = 'Enter a full URL starting with https://';
-    else if (price === null || price <= 0n) dErr = 'Enter the expected price in USDC.';
-    else if (price > 100000n) dErr = 'Expected price is above the 0.100 USDC cap.';
-    else if (payTo && !/^0x[a-fA-F0-9]{40}$/.test(payTo)) dErr = 'payTo must be a 0x address (42 characters).';
-    else if (units !== null && price > units) dErr = 'Expected price is above your budget.';
-    body = { directUrl: { url: direct, expectedPrice: String(price), category: $('#d-cat', root).value, ...(payTo ? { expectedPayTo: payTo } : {}) } };
-  }
-  setErr(root, '#task-input', '#task-error', tErr); setErr(root, '#budget-input', '#budget-error', bErr); setErr(root, '#d-url', '#d-error', dErr);
+  setErr(root, '#task-input', '#task-error', tErr); setErr(root, '#budget-input', '#budget-error', bErr);
   const opts = $('#xp-options', root);
   if (tErr) { $('#task-input', root).focus(); return null; }
   if (bErr) { opts.open = true; $('#budget-input', root).focus(); return null; }
-  if (dErr) { opts.open = true; $('#d-url', root).focus(); return null; }
-  return { ...(direct ? {} : { text }), ...(body || {}), budget: String(units), maxConcurrency: Number($('#conc-select', root).value), hired: [...app.hired] };
+  return { text, budget: String(units), maxConcurrency: Number($('#conc-select', root).value), hired: [...app.hired] };
 }
 
 async function run(root) {
@@ -263,7 +243,7 @@ async function run(root) {
   btn.disabled = true;
   try {
     const { taskId } = await api.createTask(body);
-    taskText = body.text || `Direct purchase from ${body.directUrl.url}`;
+    taskText = body.text;
     const input = $('#task-input', root);
     input.value = ''; autosize(input); $('#task-count', root).textContent = '';
     $('#xp-options', root).open = false;
@@ -309,6 +289,24 @@ function build(root) {
   built = true;
 }
 
+/** Back to the empty landing page: detaches from any task (a running task keeps running on the server). */
+function resetView() {
+  const root = document.getElementById('page-explore');
+  if (!built || !root) return;
+  if (stream) { stream(); stream = null; }
+  clearInterval(timer); clearTimeout(kickTimer);
+  task = null; taskText = ''; streamState = 'closed'; submitting = false;
+  chat.setTask(null);
+  resultView.reset();
+  const btn = $('#run-btn', root);
+  btn.disabled = false; btn.setAttribute('aria-label', 'Send task'); btn.innerHTML = icon('send');
+  $('#xp-options', root).open = true;
+  const input = $('#task-input', root); input.value = ''; autosize(input);
+  $('#task-count', root).textContent = '';
+  setErr(root, '#task-input', '#task-error', ''); setErr(root, '#budget-input', '#budget-error', '');
+  renderAll(root);
+}
+
 export default {
   title: 'Explore Agents',
   subtitle: 'Give your Buyer Agent a task, or hire specialist agents for single calls.',
@@ -321,6 +319,7 @@ export default {
       try { const s = await api.task(id); taskText = s.text || taskText; attach(root, id); } catch { /* task no longer known */ renderAll(root); }
     } else renderAll(root);
   },
+  reset: resetView,
   /** Opens a task from My Tasks. */
-  open(id) { const q = new URLSearchParams(location.search); q.set('task', id); history.replaceState(null, '', `?${q.toString()}#explore`); },
+  open(id) { const q = new URLSearchParams(location.search); q.set('task', id); history.replaceState(null, '', `?${q.toString()}${location.hash}`); }, // the caller then switches the hash, which routes here
 };

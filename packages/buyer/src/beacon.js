@@ -37,7 +37,7 @@ Prefer, in this order: proven sellers, then a higher score, then a lower price, 
 Return the chosen "id" exactly as given and a "reason" of at most two short sentences that uses only the facts provided.`;
 
 const SUMMARY_SYSTEM = `${ROLE}
-Your job now: write the final report for the user in at most 150 words. Cover: what was asked, which agents you hired and why, what they returned, what it cost against the budget, and anything that went wrong or is uncertain.
+Your job now: write a brief final report as at most 5 bullet points (never more), each on its own line starting with "- " and at most 16 words, no heading and no intro. Merge related facts into one bullet (for example one bullet for all hired agents). Give money in USDC only, never in raw units. Cover: what was asked, which agents you hired and why, what they returned, what it cost against the budget, and anything that went wrong or is uncertain.
 Use only the facts provided. Do not add numbers that are not in the facts.
 Briefly mention what the hired agents added in their own words (agentNotes), attributing each to its agent.
 Write plain text only: no markdown, no asterisks, no headings. Short paragraphs or lines starting with a dash are fine.`;
@@ -116,16 +116,16 @@ function createBeacon({ llm, log } = {}) {
   /** Deterministic report from facts. Used without a model and when the model's prose cannot be trusted. */
   function templatedSummary(f) {
     const lines = [];
-    lines.push(`Task: ${f.task}`);
-    if (f.choices.length) lines.push(`Hired: ${f.choices.map((c) => `${c.seller} (${c.category})`).join(', ')}.`);
-    for (const c of f.choices) lines.push(`Why ${c.seller}: ${c.reason}`);
+    lines.push(`- Task: ${f.task}`);
+    if (f.choices.length) lines.push(`- Hired: ${f.choices.map((c) => `${c.seller} (${c.category})`).join(', ')}.`);
+    for (const c of f.choices.slice(0, 3)) lines.push(`- Why ${c.seller}: ${c.reason}`);
     const paid = f.purchases.filter((p) => p.paid !== '0');
-    lines.push(`Cost: ${fmt(f.spent)} of ${fmt(f.budget)} USDC across ${paid.length} paid call${paid.length === 1 ? '' : 's'}.`);
+    lines.push(`- Cost: ${fmt(f.spent)} of ${fmt(f.budget)} USDC across ${paid.length} paid call${paid.length === 1 ? '' : 's'}.`);
     const bad = f.purchases.filter((p) => !['paid'].includes(p.status));
-    if (bad.length) lines.push(`Problems: ${bad.map((p) => `${p.seller} ${p.status}${p.reason ? ` (${p.reason})` : ''}`).join('; ')}.`);
-    if (f.findings.length) lines.push(`Result: ${f.findings.slice(0, 6).join(' ')}`);
-    if (f.agentNotes?.length) lines.push(`What the agents added: ${f.agentNotes.slice(0, 6).map((n) => `${n.agent} - ${n.text}`).join(' | ')}`);
-    lines.push(f.status === 'completed' ? 'The task completed.' : `The task ended as ${f.status}.${f.notice ? ` ${f.notice}` : ''}`);
+    if (bad.length) lines.push(`- Problems: ${bad.map((p) => `${p.seller} ${p.status}${p.reason ? ` (${p.reason})` : ''}`).join('; ')}.`);
+    if (f.findings.length) lines.push(`- Result: ${f.findings.slice(0, 3).join(' ')}`);
+    if (f.agentNotes?.length) lines.push(`- What the agents added: ${f.agentNotes.slice(0, 3).map((n) => `${n.agent} - ${n.text}`).join(' | ')}`);
+    lines.push(f.status === 'completed' ? '- The task completed.' : `- The task ended as ${f.status}.${f.notice ? ` ${f.notice}` : ''}`);
     return lines.join('\n');
   }
 

@@ -1,6 +1,5 @@
-/* Explore Agents only: light theme on a white-to-lavender gradient. Everything is scoped to body[data-route="explore"] .main-col,
-   so the sidebar and every other page keep the existing dark theme. The existing components re-theme through the design tokens. */
-body[data-route="explore"] .main-col {
+/* One light theme for the whole site: white-to-lavender gradient, light panels, the same violet accent. */
+:root {
   --bg: #ffffff;
   --surface: rgba(255, 255, 255, 0.88);
   --surface-2: #f5f2fe;
@@ -22,6 +21,8 @@ body[data-route="explore"] .main-col {
   --red-soft: rgba(185, 28, 28, 0.08);
   --shadow: 0 1px 2px rgba(70, 50, 150, 0.06), 0 10px 28px rgba(70, 50, 150, 0.08);
   color-scheme: light;
+}
+body {
   color: var(--text);
   background:
     radial-gradient(ellipse 90% 62% at 50% 0%, #ffffff 60%, rgba(255, 255, 255, 0) 100%),
@@ -29,38 +30,40 @@ body[data-route="explore"] .main-col {
   background-attachment: fixed;
   min-height: 100vh;
 }
+.app, .main-col { background: transparent; }
 
 /* Header: only the account control remains; the in-page heading replaces the title and the network badge is gone. */
-body[data-route="explore"] .topbar { background: rgba(255, 255, 255, 0.6); border-bottom-color: transparent; backdrop-filter: blur(10px); justify-content: flex-end; }
+.topbar { background: rgba(255, 255, 255, 0.6); border-bottom-color: var(--border); backdrop-filter: blur(10px); }
+body[data-route="explore"] .topbar { border-bottom-color: transparent; justify-content: flex-end; }
 body[data-route="explore"] .topbar .titles,
 body[data-route="explore"] .pill-testnet { display: none; }
 body[data-route="explore"] .menu-btn { margin-right: auto; }
-body[data-route="explore"] .profile-btn { background: rgba(255, 255, 255, 0.85); color: var(--text); border-color: var(--border); }
-body[data-route="explore"] .menu { background: #fff; color: var(--text); border-color: var(--border); box-shadow: var(--shadow); }
-body[data-route="explore"] .menu a { color: var(--text); }
-body[data-route="explore"] .menu a:hover { background: var(--surface-2); }
-body[data-route="explore"] .banner-top { background: var(--amber-soft); color: var(--text); }
+.profile-btn { background: rgba(255, 255, 255, 0.85); color: var(--text); border-color: var(--border); }
+.menu { background: #fff; color: var(--text); border-color: var(--border); box-shadow: var(--shadow); }
+.menu a { color: var(--text); }
+.menu a:hover { background: var(--surface-2); }
+.banner-top { background: var(--amber-soft); color: var(--text); }
 
 /* Controls re-themed through the tokens; a few colours were hard-coded for the dark theme. */
-body[data-route="explore"] .input,
-body[data-route="explore"] .select,
-body[data-route="explore"] .textarea { background-color: #fff; color: var(--text); }
-body[data-route="explore"] .select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235d5779' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); }
-body[data-route="explore"] .select option { background: #fff; color: var(--text); }
-body[data-route="explore"] .input:hover,
-body[data-route="explore"] .select:hover,
-body[data-route="explore"] .textarea:hover { border-color: #b9aceb; }
-body[data-route="explore"] .btn-secondary { background: #fff; color: var(--text); }
-body[data-route="explore"] .btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
-body[data-route="explore"] .btn-primary { color: #fff; }
-body[data-route="explore"] .chip { background: rgba(255, 255, 255, 0.85); color: var(--text); }
-body[data-route="explore"] .chip:hover { background: var(--surface-2); }
-body[data-route="explore"] .card { background: var(--surface); backdrop-filter: blur(6px); }
-body[data-route="explore"] .tracker li.current { color: var(--text); }
-body[data-route="explore"] .tracker li.current .step-dot { border-color: #c9c1fb; }
-body[data-route="explore"] .code-panel { background: #fbfaff; }
-body[data-route="explore"] .code-panel pre { color: var(--text); }
-body[data-route="explore"] .skeleton { background: linear-gradient(90deg, #f1edfd, #e6dffb, #f1edfd); }
+.input,
+.select,
+.textarea { background-color: #fff; color: var(--text); }
+.select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235d5779' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); }
+.select option { background: #fff; color: var(--text); }
+.input:hover,
+.select:hover,
+.textarea:hover { border-color: #b9aceb; }
+.btn-secondary { background: #fff; color: var(--text); }
+.btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
+.btn-primary { color: #fff; }
+.chip { background: rgba(255, 255, 255, 0.85); color: var(--text); }
+.chip:hover { background: var(--surface-2); }
+.card { background: var(--surface); backdrop-filter: blur(6px); }
+.tracker li.current { color: var(--text); }
+.tracker li.current .step-dot { border-color: #c9c1fb; }
+.code-panel { background: #fbfaff; }
+.code-panel pre { color: var(--text); }
+.skeleton { background: linear-gradient(90deg, #f1edfd, #e6dffb, #f1edfd); }
 
 /* ------- Layout ------- */
 .xp { max-width: 1280px; margin: 0 auto; }
@@ -134,9 +137,36 @@ body[data-route="explore"] .skeleton { background: linear-gradient(90deg, #f1edf
 .beacon-report .report-text { white-space: pre-wrap; margin-top: 6px; }
 .result-section.beacon-report { background: var(--accent-soft); border: 1px solid rgba(106, 90, 249, 0.25); border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; }
 
-/* Preview agent cards: front-end only, visibly not connected */
-.agent-card.preview { opacity: 0.88; }
-.agent-card.preview .btn:disabled { opacity: 0.7; }
+/* Thumbnails */
+.agent-cover { height: 124px; padding: 0; overflow: hidden; background: var(--surface-2); }
+.thumb { display: block; width: 100%; height: 100%; }
+.xp-agent { overflow: hidden; }
+.xp-agent-thumb { margin: -16px -16px 2px; height: 84px; overflow: hidden; }
+.xp-agent-thumb .thumb { height: 100%; }
+
+/* Brief, bulleted report */
+ul.bullets.brief { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 5px; }
+ul.bullets.brief li { line-height: 1.45; }
+.bc-text ul.bullets.brief { margin-top: 2px; }
+
+/* Wallet: the agents you pay, each with a Basescan link */
+.payee-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.payee { display: grid; grid-template-columns: 72px 1fr; grid-template-areas: "thumb info" "link link"; gap: 10px 12px; align-items: center; border: 1px solid var(--border); border-radius: 14px; padding: 10px; background: #fff; }
+.payee-thumb { grid-area: thumb; width: 72px; height: 54px; border-radius: 10px; overflow: hidden; }
+.payee-info { grid-area: info; min-width: 0; display: grid; gap: 2px; }
+.payee-info code { font-size: 0.8rem; color: var(--muted); }
+.payee .btn { grid-area: link; justify-content: center; }
+
+/* Brand link in the sidebar */
+.brand-link { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; border-radius: 12px; }
+.brand-link:hover .brand-name { color: var(--accent-text); }
+
+/* Remaining dark-theme leftovers on the other pages */
+.tk-key { color: #4f46e5; } .tk-str { color: #15803d; } .tk-num { color: #b45309; } .tk-lit { color: #be185d; }
+.ledger tbody tr:hover { background: rgba(106, 90, 249, 0.06); }
+.dialog { background: #fff; color: var(--text); }
+.dialog::backdrop { background: rgba(40, 30, 90, 0.35); }
+.scrim { background: rgba(40, 30, 90, 0.35); }
 
 /* ------- Beacon chat ------- */
 .bc { display: flex; flex-direction: column; height: min(60vh, 520px); background: var(--surface); border: 1px solid var(--border); border-radius: 18px; box-shadow: var(--shadow); overflow: hidden; backdrop-filter: blur(8px); }
@@ -195,7 +225,7 @@ body[data-route="explore"] .skeleton { background: linear-gradient(90deg, #f1edf
 }
 
 /* ------- Sidebar: the same light theme on the Explore route ------- */
-body[data-route="explore"] .sidebar {
+.sidebar {
   --bg: #ffffff; --surface: #ffffff; --surface-2: #f5f2fe; --surface-3: #ece7fc; --border: #e6e0f7; --border-strong: #d6cdf2;
   --text: #1c1737; --muted: #5d5779; --faint: #7a7396; --accent-text: #5846ec; --accent-soft: rgba(106, 90, 249, 0.12);
   --green: #15803d; --amber: #a14a08; --red: #b91c1c;
@@ -203,9 +233,9 @@ body[data-route="explore"] .sidebar {
   background: linear-gradient(180deg, #ffffff 0%, #f6f2fe 100%);
   border-right-color: var(--border);
 }
-body[data-route="explore"] .sidebar .nav a[aria-current="page"] { color: var(--accent-text); border-color: rgba(106, 90, 249, 0.35); }
-body[data-route="explore"] .sidebar .btn-secondary { background: #fff; color: var(--text); border-color: var(--border-strong); }
-body[data-route="explore"] .sidebar .btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
-body[data-route="explore"] .sidebar .wallet-panel { background: var(--surface-2); }
-body[data-route="explore"] .sidebar .wp-addr code { background: #fff; color: var(--text); }
-body[data-route="explore"] .sidebar .badge-net { background: var(--accent-soft); color: var(--accent-text); }
+.sidebar .nav a[aria-current="page"] { color: var(--accent-text); border-color: rgba(106, 90, 249, 0.35); }
+.sidebar .btn-secondary { background: #fff; color: var(--text); border-color: var(--border-strong); }
+.sidebar .btn-secondary:hover:not(:disabled) { background: var(--surface-2); }
+.sidebar .wallet-panel { background: var(--surface-2); }
+.sidebar .wp-addr code { background: #fff; color: var(--text); }
+.sidebar .badge-net { background: var(--accent-soft); color: var(--accent-text); }

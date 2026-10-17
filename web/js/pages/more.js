@@ -2,7 +2,8 @@
 import { api, MOCK } from '../api.js';
 import { app } from '../app.js';
 import explore from './explore.js';
-import { $, esc, icon, formatUsdc, fmtDateTime, dialogHead, openDialog, toast } from '../ui.js';
+import { thumb } from '../thumbs.js';
+import { $, esc, icon, formatUsdc, short, fmtDateTime, dialogHead, openDialog, toast } from '../ui.js';
 
 const err = (root, title, e, retry) => { root.innerHTML = `<section class="card"><div class="empty">${icon('alert')}<h3>${esc(title)}</h3><p>${esc(e.message)}</p><button class="btn btn-primary" type="button" data-retry>${icon('refresh')}Try again</button></div></section>`; $('[data-retry]', root).addEventListener('click', retry); };
 
@@ -51,8 +52,13 @@ export const wallet = {
   async mount(root) {
     root.innerHTML = '<section class="card"><div class="empty"><p>Loading…</p></div></section>';
     try {
-      const w = await api.wallet();
+      const [w, svc] = await Promise.all([api.wallet(), api.services().catch(() => [])]);
       app.wallet = w;
+      const LAB = new Set(['overquote', 'redirect', 'hollow', 'offline']);
+      const paid = svc.filter((x) => !LAB.has(x.id) && /^0x[a-fA-F0-9]{40}$/.test(x.payTo || ''));
+      const agentsCard = `<section class="card wide" aria-labelledby="payees-h"><div class="card-head"><h2 id="payees-h">Agents you pay</h2><p class="muted">Open an agent's address on Base Sepolia Basescan to see the USDC payments it received. Opens in a new tab.</p></div>
+        <div class="payee-list">${paid.length ? paid.map((x) => `<div class="payee"><div class="payee-thumb">${thumb(x.name, x.category)}</div><div class="payee-info"><strong>${esc(x.name)}</strong><code title="${esc(x.payTo)}">${esc(short(x.payTo))}</code></div><a class="btn btn-secondary btn-sm" href="https://sepolia.basescan.org/address/${esc(x.payTo)}#tokentxns" target="_blank" rel="noopener noreferrer">View transactions ${icon('external')}</a></div>`).join('') : '<p class="muted">No agents are registered yet.</p>'}</div>
+        <p class="muted mt">Your own wallet: <a href="https://sepolia.basescan.org/address/${esc(w.address)}#tokentxns" target="_blank" rel="noopener noreferrer">view on Basescan</a>.</p></section>`;
       root.innerHTML = `<div class="two-col"><section class="card" aria-labelledby="wallet-h"><div class="card-head row-between"><h2 id="wallet-h">Test wallet</h2><span class="badge badge-amber">Testnet only</span></div>
         <div class="eyebrow">Test USDC balance</div><div class="big-balance">${w.usdcBalance == null ? '–' : formatUsdc(w.usdcBalance)} <small>test USDC</small></div>
         <p class="muted mb">Testnet funds with no real value, read from Base Sepolia.</p>
@@ -65,7 +71,7 @@ export const wallet = {
         <li><strong>Faucet:</strong> Circle gives 20 test USDC per address, per chain, every 2 hours.</li>
         <li><strong>No gas needed:</strong> the buyer only signs payments. The facilitator pays gas.</li>
         <li><strong>Price cap:</strong> no listing may charge more than 0.100 USDC per call.</li>
-        <li><strong>Keys:</strong> the private key never reaches this page. Beacon's signer holds it.</li></ul></section></div>`;
+        <li><strong>Keys:</strong> the private key never reaches this page. Beacon's signer holds it.</li></ul></section>${agentsCard}</div>`;
     } catch (e) { err(root, 'Could not load the wallet', e, () => wallet.mount(root)); }
   },
 };

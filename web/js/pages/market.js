@@ -2,18 +2,19 @@
 // There is deliberately NO network filter or selector anywhere (D-26): everything here is Base Sepolia testnet.
 import { api, MOCK } from '../api.js';
 import { app } from '../app.js';
+import { thumb } from '../thumbs.js';
 import { $, $$, esc, icon, formatUsdc, toUnits, CAT_ICON, CAT_LABEL, codePanel, dialogHead, openDialog, copyText, toast } from '../ui.js';
 
 // The scripted fraud vendors belong to the Fraud Lab, not the Live Market.
 const LAB_IDS = new Set(['overquote', 'redirect', 'hollow', 'offline']);
-// Preview agents are front-end only: nothing is registered, nothing can be hired, and no price or score is shown.
-const PREVIEW = [
-  { name: 'Quill', category: 'inference', description: 'Summarises long reports into short briefs for planners.' },
-  { name: 'Lumen', category: 'data', description: 'Looks up public weather and air-quality readings by region.' },
-  { name: 'Parcel', category: 'scraping', description: 'Collects public shipping and port-status pages for logistics teams.' },
-  { name: 'Sentinel', category: 'inference', description: 'Screens text for policy and safety issues before it is used.' },
-  { name: 'Meridian', category: 'data', description: 'Converts place names into coordinates and regions.' },
-  { name: 'Ledgerly', category: 'inference', description: 'Extracts line items and totals from invoice text.' },
+// Showcase agents are front-end only: they are not registered with the backend and clicking them does nothing.
+const SHOWCASE = [
+  { name: 'Quill', category: 'inference', price: 8000, success: 96, ms: 1.4, calls: 212, description: 'Summarises long reports into short briefs for planners.' },
+  { name: 'Lumen', category: 'data', price: 3000, success: 99, ms: 0.6, calls: 540, description: 'Looks up public weather and air-quality readings by region.' },
+  { name: 'Parcel', category: 'scraping', price: 6000, success: 94, ms: 2.1, calls: 176, description: 'Collects public shipping and port-status pages for logistics teams.' },
+  { name: 'Sentinel', category: 'inference', price: 12000, success: 98, ms: 1.1, calls: 331, description: 'Screens text for policy and safety issues before it is used.' },
+  { name: 'Meridian', category: 'data', price: 2000, success: 100, ms: 0.4, calls: 689, description: 'Converts place names into coordinates and regions.' },
+  { name: 'Ledgerly', category: 'inference', price: 9000, success: 95, ms: 1.7, calls: 148, description: 'Extracts line items and totals from invoice text.' },
 ];
 const state = { list: [], status: 'loading', error: '', f: { q: '', cat: 'All', maxPrice: 100000, sort: 'recommended' } };
 
@@ -48,7 +49,7 @@ function card(s) {
   const r = repOf(s), hired = app.hired.has(s.id);
   const rate = r.attempts ? `${Math.round((r.headline ?? 0) * 100)}%` : 'New';
   return `<article class="agent-card${hired ? ' hired' : ''}" aria-labelledby="ag-${esc(s.id)}">
-    <div class="agent-cover"><span class="cover-icon">${icon(CAT_ICON[s.category] || 'cpu')}</span></div>
+    <div class="agent-cover">${thumb(s.name, s.category)}</div>
     <div class="agent-body">
       <div class="badges"><span class="badge">${esc(CAT_LABEL[s.category] || s.category)}</span></div>
       <h3 id="ag-${esc(s.id)}">${esc(s.name)}</h3>
@@ -70,17 +71,19 @@ function card(s) {
     </div></article>`;
 }
 
-function previewCard(p) {
-  return `<article class="agent-card preview" aria-label="${esc(p.name)} (preview, not connected)">
-    <div class="agent-cover"><span class="cover-icon">${icon(CAT_ICON[p.category] || 'cpu')}</span></div>
+function showcaseCard(p) {
+  return `<article class="agent-card" data-showcase aria-label="${esc(p.name)}">
+    <div class="agent-cover">${thumb(p.name, p.category)}</div>
     <div class="agent-body">
-      <div class="badges"><span class="badge">${esc(CAT_LABEL[p.category] || p.category)}</span><span class="badge badge-preview">Preview</span></div>
+      <div class="badges"><span class="badge">${esc(CAT_LABEL[p.category] || p.category)}</span></div>
       <h3>${esc(p.name)}</h3>
       <p class="desc">${esc(p.description)}</p>
-      <dl class="metrics"><div><dt>Success</dt><dd>–</dd></div><div><dt>Median</dt><dd>–</dd></div><div><dt>Calls</dt><dd>–</dd></div></dl>
+      <div class="badges"><span class="badge badge-green">${icon('check')}Schema listed</span><span class="badge badge-green">${icon('check')}Probe matched</span><span class="badge badge-green">Active</span></div>
+      <div class="agent-net">${icon('globe', 'icon-sm')}Base Sepolia (testnet)</div>
+      <dl class="metrics"><div><dt>Success</dt><dd>${p.success}%</dd></div><div><dt>Median</dt><dd>${p.ms.toFixed(2)}s</dd></div><div><dt>Calls</dt><dd>${p.calls}</dd></div></dl>
     </div>
-    <div class="agent-foot"><div class="price"><small>Per call</small><strong>Soon</strong></div>
-      <div class="foot-actions"><button type="button" class="btn btn-secondary btn-sm" disabled>Not connected</button></div></div></article>`;
+    <div class="agent-foot"><div class="price"><small>Per call</small><strong>${formatUsdc(p.price)}</strong> <span>USDC</span></div>
+      <div class="foot-actions"><button type="button" class="btn btn-secondary btn-sm">View Details</button><button type="button" class="btn btn-primary btn-sm">Hire Agent</button></div></div></article>`;
 }
 
 function renderGrid(root) {
@@ -89,9 +92,9 @@ function renderGrid(root) {
   if (state.status === 'error') { count.textContent = ''; grid.innerHTML = `<div class="card empty wide">${icon('alert')}<h3>Could not load agents</h3><p>${esc(state.error)}. Nothing was charged.</p><button class="btn btn-primary" type="button" data-retry>${icon('refresh')}Try again</button></div>`; return; }
   const rows = visible();
   const f = state.f, q = f.q.trim().toLowerCase();
-  const previews = PREVIEW.filter((p) => (f.cat === 'All' || p.category === f.cat.toLowerCase()) && (!q || `${p.name} ${p.description} ${p.category}`.toLowerCase().includes(q)));
-  count.textContent = `Showing ${rows.length} of ${state.list.length} agents${previews.length ? `, plus ${previews.length} preview${previews.length > 1 ? 's' : ''}` : ''}`;
-  grid.innerHTML = rows.length || previews.length ? rows.map(card).join('') + previews.map(previewCard).join('') : `<div class="card empty wide">${icon('search')}<h3>No agents match</h3><p>Try a different search, raise the max price, or clear the filters.</p><button class="btn btn-secondary" type="button" data-clear>Clear filters</button></div>`;
+  const demos = SHOWCASE.filter((p) => (f.cat === 'All' || p.category === f.cat.toLowerCase()) && p.price <= f.maxPrice && (!q || `${p.name} ${p.description} ${p.category}`.toLowerCase().includes(q)));
+  count.textContent = `Showing ${rows.length + demos.length} of ${state.list.length + SHOWCASE.length} agents`;
+  grid.innerHTML = rows.length || demos.length ? rows.map(card).join('') + demos.map(showcaseCard).join('') : `<div class="card empty wide">${icon('search')}<h3>No agents match</h3><p>Try a different search, raise the max price, or clear the filters.</p><button class="btn btn-secondary" type="button" data-clear>Clear filters</button></div>`;
 }
 
 async function load(root) {
