@@ -116,9 +116,8 @@ function createBeacon({ llm, log } = {}) {
   /** Deterministic report from facts. Used without a model and when the model's prose cannot be trusted. */
   function templatedSummary(f) {
     const lines = [];
-    lines.push(`- Task: ${f.task}`);
+    lines.push(`- Task: ${String(f.task).length > 110 ? `${String(f.task).slice(0, 107)}...` : f.task}`);
     if (f.choices.length) lines.push(`- Hired: ${f.choices.map((c) => `${c.seller} (${c.category})`).join(', ')}.`);
-    for (const c of f.choices.slice(0, 3)) lines.push(`- Why ${c.seller}: ${c.reason}`);
     const paid = f.purchases.filter((p) => p.paid !== '0');
     lines.push(`- Cost: ${fmt(f.spent)} of ${fmt(f.budget)} USDC across ${paid.length} paid call${paid.length === 1 ? '' : 's'}.`);
     const bad = f.purchases.filter((p) => !['paid'].includes(p.status));

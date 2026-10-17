@@ -99,7 +99,7 @@ describe('Beacon agent: summary and chat', () => {
     const s = await createBeacon({}).summarize(facts());
     expect(s.source).toBe('rules');
     expect(s.text).toContain('Atlas');
-    expect(s.text).toContain('only eligible scraping');
+    expect(s.text).toContain('Hired: Atlas');
     expect(s.text).toContain('0.039 of 0.050 USDC');
     expect(s.text).toContain('Overquote refused');
   });
