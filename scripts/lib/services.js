@@ -12,8 +12,8 @@ const seller = (name, port, file, payToKey = name, model = false) => ({ name, po
 
 const SERVICES = [
   seller('atlas', 4011, 'atlas.js', 'atlas', true),
-  seller('tremor', 4012, 'tremor.js'),
-  seller('brief', 4013, 'brief.js'),
+  seller('tremor', 4012, 'tremor.js', 'tremor', true),
+  seller('brief', 4013, 'brief.js', 'brief', true),
   seller('overquote', 4021, 'fixtures/overquote.js'),
   seller('redirect', 4022, 'fixtures/redirect.js'),
   seller('hollow', 4023, 'fixtures/hollow.js'),

@@ -45,7 +45,8 @@ Judges can change the numbers inside the task text, the budget and `max_concurre
 | Reconciliation | Paid rows versus USDC transfers out of the buyer wallet, to the last unit | `reconcile.ts` |
 | Recovery | A crash or timeout after signing is resolved from the chain, never lost | `recover.ts` |
 | Seller kit | Verify, claim nonce, work, validate own output, then settle; one authorisation unlocks one response | `packages/sellers/src/kit.js` |
-| Agents | Honest sellers Atlas, Tremor, Brief; test vendors Overquote, Redirect, Hollow, Offline; buyer Beacon | `packages/sellers`, `packages/buyer` |
+| Agents | Model-backed agents (Gemini, one key each): buyer Beacon plans, chooses sellers and chats; sellers Atlas, Tremor, Brief add notes, a digest and the brief wording. Scripted test vendors Overquote, Redirect, Hollow, Offline for the fraud lab | `packages/sellers`, `packages/buyer`, `packages/llm` |
+| Model rule | A model writes words and proposes picks; code owns the data, the readiness level and every payment decision, and checks that numbers in model text come from the data. Every agent falls back to a rule-based path with no key | `packages/llm`, `agent-kit.js`, `beacon.js` |
 | Registry | Open, validated, SSRF-safe, rate limited, advisory probe | `packages/registry` |
 | Dashboard | Console, marketplace, ledger, reputation, attack panel, wallet, settings | `web/` |
 
@@ -76,4 +77,5 @@ Evidence from live runs (BaseScan links, reconcile output) is in `docs/evidence/
 - Not protected: a compromised facilitator wallet or chain, a fully compromised machine holding Beacon's key, and the quality of seller content beyond schema and sanity checks.
 - The public x402.org facilitator's settlement time varies from about 2 seconds to over a minute. The buyer holds such calls as pending and recovers them from the chain instead of guessing.
 - Signed listings and the human-approval gate are not built. Stretch goals (agent chain, Bazaar listing) are not built.
-- Earthquake regions are approximated by a centre point and radius per country, and Brief is a deterministic rule-based scorer, not a model.
+- Earthquake regions are approximated by a centre point and radius per country. Brief's readiness level comes from fixed thresholds on event count and strongest magnitude; the model only writes the wording.
+- Model text is checked for invented numbers, not for every kind of wrong statement. Free-tier Gemini limits apply, and prompts on the free tier may be used by Google to improve its products, so only test data goes in.

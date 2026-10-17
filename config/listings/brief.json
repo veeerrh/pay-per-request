@@ -5,7 +5,7 @@
   "port": 4013,
   "path": "/brief",
   "method": "POST",
-  "description": "Honest inference seller. Writes a short readiness brief for up to 2 countries from data you already bought (rule-based scorer).",
+  "description": "Inference agent. Writes a short readiness brief for up to 2 countries from data you already bought. The readiness level comes from fixed rules; a model writes the wording and up to three actions.",
   "inputSchema": {
     "type": "object",
     "required": [
@@ -55,9 +55,23 @@
             },
             "brief": {
               "type": "string"
+            },
+            "actions": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 160
+              },
+              "maxItems": 3
+            },
+            "basis": {
+              "type": "object"
             }
           }
         }
+      },
+      "meta": {
+        "type": "object"
       }
     }
   },

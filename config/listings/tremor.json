@@ -5,7 +5,7 @@
   "port": 4012,
   "path": "/quakes",
   "method": "GET",
-  "description": "Honest data seller. Queries the public USGS earthquake catalog for a country region.",
+  "description": "Data agent. Queries the public USGS earthquake catalog for a country region; code computes the statistics and a model adds one plain-language sentence.",
   "inputSchema": {
     "type": "object",
     "required": [
@@ -62,6 +62,16 @@
             }
           }
         }
+      },
+      "stats": {
+        "type": "object"
+      },
+      "digest": {
+        "type": "string",
+        "maxLength": 260
+      },
+      "meta": {
+        "type": "object"
       }
     }
   },

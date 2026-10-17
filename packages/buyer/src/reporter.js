@@ -1,11 +1,11 @@
 // Beacon's reporter: a templated receipt of what was bought, from whom, why and at what cost (P-03).
-// No model is used by default (D-18). Text comes from typed fields only.
+// Text here comes from typed fields only; any model prose is added by Beacon's summary, not by this receipt.
 const fmt = (u) => (BigInt(u) / 1000000n).toString() + '.' + (BigInt(u) % 1000000n).toString().padStart(6, '0').replace(/0+$/, '').padEnd(3, '0');
 
 const SOURCES = {
   scraping: 'Public scraping sandbox country list (robots.txt checked)',
   data: 'Public USGS earthquake catalog',
-  inference: 'Rule-based readiness scorer (no model call)',
+  inference: 'Readiness brief: level from fixed rules, wording from a model and checked against the data',
 };
 const ORDER = { low: 1, medium: 2, high: 3 };
 

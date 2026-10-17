@@ -12,8 +12,13 @@ const envOf = (name) => buildEnv(SERVICES.find((s) => s.name === name), PARENT);
 const keyNames = (env) => Object.keys(env).filter((k) => /KEY|TOKEN/.test(k)).sort();
 
 describe('model keys stay with their own agent (T-09)', () => {
-  it('01 Atlas receives only its own key', () => {
+  it('01 each model-backed seller receives only its own key', () => {
     expect(keyNames(envOf('atlas'))).toEqual(['ATLAS_GEMINI_API_KEY']);
+    expect(keyNames(envOf('tremor'))).toEqual(['TREMOR_GEMINI_API_KEY']);
+    expect(keyNames(envOf('brief'))).toEqual(['BRIEF_GEMINI_API_KEY']);
+  });
+  it('01b the test vendors, registry and gateway receive no model key at all', () => {
+    for (const n of ['overquote', 'redirect', 'hollow', 'offline', 'registry', 'gateway']) expect(keyNames(envOf(n)), n).toEqual([]);
   });
   it('02 Beacon receives its keys and no seller key', () => {
     const k = keyNames(envOf('beacon'));

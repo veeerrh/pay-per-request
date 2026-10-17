@@ -1,6 +1,9 @@
-// Tremor: honest data seller (0.002 USDC). Wraps the public USGS earthquake catalog.
+// Tremor: honest data agent (0.002 USDC). Code queries the public USGS earthquake catalog and computes the numbers.
+// A model (Gemini, TREMOR_GEMINI_API_KEY) adds one plain sentence about the activity; code drops it if it carries a number the data does not.
 const path = require('path');
+const { quote, numbersGrounded, z } = require('@di06/llm');
 const { boot, ROOT } = require('./common');
+const { agentLlm, memoEnrich, clean } = require('./agent-kit');
 const geo = require(path.join(ROOT, 'config', 'geo.json'));
 delete geo._note;
 
@@ -13,7 +16,33 @@ function parseQuery(q) {
   return { country: countryKey(q.country), days, minMag };
 }
 
+const DigestOut = z.object({ digest: z.string().max(260) });
+const TREMOR_SYSTEM = `You are Tremor, a seismic data agent that other agents buy earthquake data from.
+You receive an earthquake list from the public USGS catalog and statistics that code already computed.
+Write one plain sentence (under 40 words) describing the activity: how many events, the strongest magnitude and how recent the latest was.
+Use only the numbers provided. Do not predict, do not give advice and do not add events. If there are no events, say none were recorded in the window.`;
+
+/** Numbers computed by code, never by the model. */
+function statsOf(quakes, now = Date.now()) {
+  const times = quakes.map((q) => Date.parse(q.time)).filter(Number.isFinite);
+  const latest = times.length ? Math.max(...times) : null;
+  return {
+    count: quakes.length,
+    strongest: quakes.length ? Math.max(...quakes.map((q) => q.magnitude)) : null,
+    latest: latest === null ? null : new Date(latest).toISOString(),
+    hoursSinceLatest: latest === null ? null : Math.max(0, Math.round((now - latest) / 3_600_000)),
+  };
+}
+
 function createTremor(opts = {}) {
+  const llm = agentLlm('TREMOR', opts);
+  const enrich = memoEnrich({ log: (m) => console.warn(`tremor: ${m}`) });
+  async function digestFor(base, p, stats) {
+    const facts = { country: base.country, windowDays: base.window_days, minMagnitude: p.minMag, stats, quakes: base.quakes.slice(0, 10) };
+    const out = await llm.generateJson({ name: 'tremor-digest', system: TREMOR_SYSTEM, schema: DigestOut, maxOutputTokens: 160, user: `${quote('usgs data', facts)}\nWrite the sentence now.` });
+    const text = clean(out.digest);
+    return text && numbersGrounded(text, JSON.stringify(facts)) ? text : null;
+  }
   const fetchImpl = opts.fetch || fetch;
   const cache = new Map();
   const TTL = 10 * 60_000;          // identical questions within 10 minutes reuse the answer
@@ -59,7 +88,13 @@ function createTremor(opts = {}) {
       if (!Number.isFinite(p.minMag) || p.minMag < 0 || p.minMag > 9) return 'minMag must be between 0 and 9';
       return null;
     },
-    handler: (req) => query(parseQuery(req.query)),
+    handler: async (req) => {
+      const p = parseQuery(req.query);
+      const base = await query(p);
+      const stats = statsOf(base.quakes);
+      const digest = llm.enabled ? await enrich(`${p.country}|${p.days}|${p.minMag}|${stats.count}|${stats.latest}`, () => digestFor(base, p, stats)) : null;
+      return { ...base, stats, ...(digest ? { digest } : {}), meta: { source: 'USGS earthquake catalog', notes: digest ? 'model' : 'none' } };
+    },
     outputCheck: (o) => (o.quakes.every((q) => q.magnitude >= 0 && q.magnitude <= 10) ? null : 'magnitude outside 0 to 10'),
   }, opts.requiredBy ?? module);
 
@@ -72,4 +107,4 @@ function createTremor(opts = {}) {
 }
 
 const app = createTremor();
-module.exports = { app, createTremor };
+module.exports = { app, createTremor, statsOf };
