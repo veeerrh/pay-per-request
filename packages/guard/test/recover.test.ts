@@ -111,3 +111,25 @@ describe('crash recovery (TC-2.5)', () => {
     expect(w.budget.totals('t1').reserved).toBe(0n);
   });
 });
+
+describe('recovery never races a live call', () => {
+  it('skips an intent that is still in flight in this process', async () => {
+    const { inFlight } = await import('../src/inflight');
+    const w = world();
+    crashed(w, 'live1', NOW + 30);
+    inFlight.add('live1');
+    try {
+      expect(await rec(w, chainWith(true, '0x' + 'cd'.repeat(32)))).toHaveLength(0);
+      expect(w.budget.totals('t1').reserved).toBe(5000n); // untouched
+    } finally { inFlight.delete('live1'); }
+    expect((await rec(w, chainWith(true)))[0].outcome).toBe('paid'); // once the call is gone, recovery resolves it
+  });
+  it('commit and release are idempotent for the state they already hold', () => {
+    const w = world();
+    const r = w.budget.reserve({ taskId: 't1', requestId: 'x', sellerId: 's', category: 'data', amount: 1000n });
+    if (!r.ok) throw new Error('reserve failed');
+    w.budget.commit(r.id);
+    expect(() => w.budget.commit(r.id)).not.toThrow();
+    expect(() => w.budget.release(r.id)).toThrow();
+  });
+});

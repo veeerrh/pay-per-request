@@ -87,7 +87,9 @@ export class Budget {
 
   private setState(id: number, to: 'spent' | 'released'): void {
     const r = this.store.db.prepare("UPDATE reservations SET state=? WHERE id=? AND state='reserved'").run(to, id);
-    if (r.changes !== 1) throw new Error(`reservation ${id} is not in the reserved state`);
+    if (r.changes === 1) return;
+    // Idempotent: asking for the state it is already in is fine. A conflicting terminal state is a real bug.
+    if (this.stateOf(id) !== to) throw new Error(`reservation ${id} is not in the reserved state`);
   }
   commit(id: number): void { this.setState(id, 'spent'); }
   release(id: number): void { this.setState(id, 'released'); }

@@ -10,6 +10,7 @@ import { evaluateHeader, compareTerms } from './engine';
 import { limitedFetch, HttpError, type HttpResult } from './http';
 import { NETWORK, USDC_ADDRESS } from './money';
 import type { LogFn } from './redact';
+import { inFlight } from './inflight';
 
 export type ValidateResult = { ok: true; output: unknown } | { ok: false; reason: string; ruleId?: string };
 export type ValidateFn = (body: string, ctx: { sellerId: string; category: string }) => ValidateResult;
@@ -62,6 +63,12 @@ const tryDecode = (h: string): Accept[] | null => { try { return decodePaymentRe
  * request -> parse -> pre-sign rules -> re-check -> reserve -> intent -> sign -> retry -> validate -> finalise.
  */
 export async function pay(d: PayDeps, r: PayRequest): Promise<PayResult> {
+  // While a call is in flight in THIS process, crash recovery must not touch it (it would race the live response).
+  inFlight.add(r.requestId);
+  try { return await payInner(d, r); } finally { inFlight.delete(r.requestId); }
+}
+
+async function payInner(d: PayDeps, r: PayRequest): Promise<PayResult> {
   const f = d.fetch ?? fetch;
   const log: LogFn = d.log ?? (() => undefined);
   const t0 = Date.now();

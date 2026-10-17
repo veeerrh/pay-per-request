@@ -2,6 +2,7 @@ import type { Store } from './store/store';
 import type { Budget } from './budget';
 import type { ChainReader } from './chain-types';
 import type { LogFn } from './redact';
+import { inFlight } from './inflight';
 
 export type RecoveryOutcome = 'paid' | 'failed' | 'held' | 'error';
 export interface RecoveryRow { requestId: string; outcome: RecoveryOutcome; reason: string; txHash?: string }
@@ -14,6 +15,7 @@ export async function recoverPending(d: { store: Store; budget: Budget; chain: C
   const now = d.nowSeconds ?? (() => Math.floor(Date.now() / 1000));
   const out: RecoveryRow[] = [];
   for (const i of d.store.unfinishedIntents()) {
+    if (inFlight.has(i.requestId)) continue; // still being handled by a live call in this process
     const res = d.budget.reservationFor(i.requestId);
     const finish = (status: 'paid' | 'failed', ruleId: string, reason: string, txHash?: string) => {
       d.store.appendEvent({
