@@ -1,21 +1,21 @@
 # Public URLs and addresses
 
-Fill in the **base URL** after the tunnel is up. `npm run tunnel` writes `PUBLIC_BASE_URL` into `.env` for you, then `npm run start:public` starts everything in demo mode and registers the listings with that URL. Quick-tunnel URLs change on every restart: after a restart run `npm run start:public` again and update this file.
+Deployed on Render (free) with an UptimeRobot ping; see `docs/DEPLOY_RENDER.md`. A laptop tunnel (`npm run tunnel`) is the standby. Do not restart or redeploy the service during judging.
 
-**Base URL:** `<fill in after the tunnel is up>`
+**Base URL:** `https://agentmarket-public.onrender.com`
 
 | What | URL |
 | --- | --- |
-| Dashboard and buyer console | `<base>/` |
-| Registry (JSON) | `<base>/registry/services` |
-| Registry (page) | `<base>/registry/` |
-| Atlas (scraping, 0.005) | `<base>/atlas/countries?top=3&by=population` |
-| Tremor (data, 0.002) | `<base>/tremor/quakes?country=India&days=7&minMag=4.5` |
-| Brief (inference, 0.010, POST) | `<base>/brief/brief` |
-| Overquote (test vendor, price lie) | `<base>/overquote/countries` |
-| Redirect (test vendor, payTo lie) | `<base>/redirect/quakes` |
-| Hollow (test vendor, junk output, POST) | `<base>/hollow/brief` |
-| Offline (test vendor, always fails) | `<base>/offline/countries` |
+| Dashboard and buyer console | `https://agentmarket-public.onrender.com/` |
+| Registry (JSON) | `https://agentmarket-public.onrender.com/registry/services` |
+| Registry (page) | `https://agentmarket-public.onrender.com/registry/` |
+| Atlas (scraping, 0.005) | `https://agentmarket-public.onrender.com/atlas/countries?top=3&by=population` |
+| Tremor (data, 0.002) | `https://agentmarket-public.onrender.com/tremor/quakes?country=India&days=7&minMag=4.5` |
+| Brief (inference, 0.010, POST) | `https://agentmarket-public.onrender.com/brief/brief` |
+| Overquote (test vendor, price lie) | `https://agentmarket-public.onrender.com/overquote/countries` |
+| Redirect (test vendor, payTo lie) | `https://agentmarket-public.onrender.com/redirect/quakes` |
+| Hollow (test vendor, junk output, POST) | `https://agentmarket-public.onrender.com/hollow/brief` |
+| Offline (test vendor, always fails) | `https://agentmarket-public.onrender.com/offline/countries` |
 | Check everything is up | `npm run health -- --once` |
 
 Prices are in USDC units (6 decimals): 0.005 USDC = 5,000 units. Facilitator: <https://x402.org/facilitator>. USDC contract: `0x036CbD53842c5426634e7929541eC2318f3dCF7e`.
